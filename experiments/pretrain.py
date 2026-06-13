@@ -91,7 +91,7 @@ def main():
     ax.set_title(f"pretrain loss ({mode})  P={Pp}, C={C}, {NUM_IMAGES} img")
     fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
     tag = f"P{Pp}_C{C}_n{NUM_IMAGES}_T{ITERS_PER_STAGE}_{mode}"
-    out = os.path.join(OUTPUT_DIR, f"run_pretrain_{tag}.png")
+    out = os.path.join(OUTPUT_DIR, f"pretrain_{tag}.png")
     fig.savefig(out, dpi=120, bbox_inches="tight")
     print(f"Saved {out}")
 

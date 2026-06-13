@@ -3,7 +3,7 @@ Reconstruct an image with a TRAINED (frozen) decoder: fit only the latent z,
 render at full resolution, and compare to ground truth. Optionally save the
 reconstruction (.linrz).
 
-Run run_pretrain.py first to produce a decoder (a .linrd in experiments/models/).
+Run pretrain.py first to produce a decoder (a .linrd in experiments/models/).
 """
 
 # ============================ PARAMETERS ============================
@@ -31,7 +31,7 @@ def main():
     if not DECODER or not os.path.exists(dpath):
         raise SystemExit(f"Decoder not found: {dpath}\n"
                          "Set DECODER to a .linrd in experiments/models/ "
-                         "(run run_pretrain.py first).")
+                         "(run pretrain.py first).")
     dec = LinrDecoder.load(dpath, device=dev)
 
     paths = sorted(glob.glob(os.path.join(NATURAL_DIR, "nat_*.png")))

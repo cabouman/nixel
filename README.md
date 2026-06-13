@@ -33,13 +33,13 @@ docs/            theory + API
 ```bash
 python experiments/build_databases.py     # build experiments/img_data/{natural,phantom}
 python experiments/fit_one.py             # single-image progressive fit (probe)
-python experiments/run_pretrain.py        # train a decoder (progressive or continue) and SAVE it
+python experiments/pretrain.py            # train a decoder (progressive or continue) and SAVE it
 python experiments/reconstruct.py         # reconstruct an image with a saved decoder
 python experiments/ab_progressive.py      # progressive vs joint A/B (comparison)
 pytest                                     # run the tests
 ```
 
-Typical workflow: `build_databases` → `run_pretrain` (saves a `.linrd` decoder in
+Typical workflow: `build_databases` → `pretrain` (saves a `.linrd` decoder in
 `experiments/models/`) → `reconstruct` (loads it, fits an image).
 
 Scripts can be run from anywhere — data and output paths are anchored to
