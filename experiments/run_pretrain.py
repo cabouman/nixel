@@ -68,7 +68,8 @@ def main():
     fig.suptitle(f"Progressive pretrain + reconstruct  P={P} (G={G}), C={CHANNELS}, "
                  f"{NUM_IMAGES} img")
     fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out = os.path.join(OUTPUT_DIR, "run_pretrain.png")
+    tag = f"P{P}_C{CHANNELS}_n{NUM_IMAGES}_T{ITERS_PER_STAGE}"
+    out = os.path.join(OUTPUT_DIR, f"run_pretrain_{tag}.png")
     fig.savefig(out, dpi=120, bbox_inches="tight")
     print(f"Saved {out}")
 

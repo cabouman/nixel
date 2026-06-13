@@ -106,7 +106,8 @@ def main():
     fig.suptitle(f"Progressive vs joint  —  P={P} (G={G}), C={CHANNELS}, "
                  f"{n_stages}x{ITERS_PER_STAGE} steps", fontsize=12)
     fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out = os.path.join(OUTPUT_DIR, "ab_progressive.png")
+    tag = f"P{P}_C{CHANNELS}_T{ITERS_PER_STAGE}_im{IMAGE}"
+    out = os.path.join(OUTPUT_DIR, f"ab_progressive_{tag}.png")
     fig.savefig(out, dpi=120, bbox_inches="tight")
     print(f"Saved {out}")
 

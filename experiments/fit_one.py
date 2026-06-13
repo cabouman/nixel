@@ -6,7 +6,7 @@ Run from the repo root:  python experiments/fit_one.py
 """
 
 # ============================ PARAMETERS ============================
-P               = 4       # pixels per nixel; nixel grid G = N/P, bands K = 0..P/2
+P               = 8       # pixels per nixel; nixel grid G = N/P, bands K = 0..P/2
 CHANNELS        = 8       # C  ->  CR = P*P / C
 IMAGE           = 0       # which nat_<k>.png (sorted index)
 ITERS_PER_STAGE = 2000    # steps per band-stage (bands 0..M => (M+1) stages)
@@ -70,7 +70,8 @@ def main():
     ax[3].grid(True, which="both", alpha=0.3)
     fig.suptitle(f"Progressive single-image fit  P={P} (G={G})  C={CHANNELS}")
     fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out = os.path.join(OUTPUT_DIR, "fit_one.png")
+    tag = f"P{P}_C{CHANNELS}_T{ITERS_PER_STAGE}_im{IMAGE}"
+    out = os.path.join(OUTPUT_DIR, f"fit_one_{tag}.png")
     fig.savefig(out, dpi=120, bbox_inches="tight")
     print(f"Saved {out}")
 
