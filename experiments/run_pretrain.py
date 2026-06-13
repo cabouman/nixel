@@ -23,12 +23,13 @@ import numpy as np, torch
 from PIL import Image
 from linr import (LinrDecoder, ArrayField, ImageGrid, ProgressiveConfig,
                   ReconConfig, get_device)
+from _paths import NATURAL_DIR, OUTPUT_DIR
 
 
 def main():
     torch.manual_seed(SEED); np.random.seed(SEED); random.seed(SEED)
     dev = get_device()
-    paths = sorted(glob.glob("img_data/natural/nat_*.png"))[:NUM_IMAGES]
+    paths = sorted(glob.glob(os.path.join(NATURAL_DIR, "nat_*.png")))[:NUM_IMAGES]
     if not paths:
         raise SystemExit("No images in img_data/natural -- run build_databases.py first.")
     imgs = [torch.from_numpy(np.asarray(Image.open(p).convert("L"), np.float32) / 255.0)
@@ -66,9 +67,10 @@ def main():
         a_.axis("off")
     fig.suptitle(f"Progressive pretrain + reconstruct  P={P} (G={G}), C={CHANNELS}, "
                  f"{NUM_IMAGES} img")
-    fig.tight_layout(); os.makedirs("output", exist_ok=True)
-    fig.savefig("output/run_pretrain.png", dpi=120, bbox_inches="tight")
-    print("Saved output/run_pretrain.png")
+    fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out = os.path.join(OUTPUT_DIR, "run_pretrain.png")
+    fig.savefig(out, dpi=120, bbox_inches="tight")
+    print(f"Saved {out}")
 
 
 if __name__ == "__main__":

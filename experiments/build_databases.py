@@ -34,9 +34,7 @@ import torch
 from PIL import Image
 
 from linr import pixel_grid, eval_ellipses, random_phantom
-
-NATURAL_DIR = "img_data/natural"
-PHANTOM_DIR = "img_data/phantom"
+from _paths import NATURAL_DIR, PHANTOM_DIR
 
 
 def _gray(seed, size):

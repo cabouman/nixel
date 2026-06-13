@@ -22,6 +22,7 @@ import glob, math, os, random
 import numpy as np, torch
 from PIL import Image
 from linr import LinrDecoder, ArrayField, ProgressiveConfig, pixel_grid, get_device
+from _paths import NATURAL_DIR, OUTPUT_DIR
 
 
 def seed_all(s):
@@ -47,7 +48,7 @@ def smooth(x, w=101):
 
 def main():
     dev = get_device()
-    path = sorted(glob.glob("img_data/natural/nat_*.png"))[IMAGE]
+    path = sorted(glob.glob(os.path.join(NATURAL_DIR, "nat_*.png")))[IMAGE]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // P; M = P // 2
     gt = img
@@ -104,9 +105,10 @@ def main():
 
     fig.suptitle(f"Progressive vs joint  —  P={P} (G={G}), C={CHANNELS}, "
                  f"{n_stages}x{ITERS_PER_STAGE} steps", fontsize=12)
-    fig.tight_layout(); os.makedirs("output", exist_ok=True)
-    fig.savefig("output/ab_progressive.png", dpi=120, bbox_inches="tight")
-    print("Saved output/ab_progressive.png")
+    fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out = os.path.join(OUTPUT_DIR, "ab_progressive.png")
+    fig.savefig(out, dpi=120, bbox_inches="tight")
+    print(f"Saved {out}")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ import glob, math, os, random
 import numpy as np, torch
 from PIL import Image
 from linr import LinrDecoder, ArrayField, ProgressiveConfig, pixel_grid, get_device
+from _paths import NATURAL_DIR, OUTPUT_DIR
 
 
 def render(dec, z, a, N, dev):
@@ -32,7 +33,7 @@ def render(dec, z, a, N, dev):
 def main():
     torch.manual_seed(SEED); np.random.seed(SEED); random.seed(SEED)
     dev = get_device()
-    path = sorted(glob.glob("img_data/natural/nat_*.png"))[IMAGE]
+    path = sorted(glob.glob(os.path.join(NATURAL_DIR, "nat_*.png")))[IMAGE]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // P; M = P // 2
     n_stages = M - K0 + 1
@@ -68,9 +69,10 @@ def main():
     ax[3].set_xlabel("step"); ax[3].set_ylabel("MSE"); ax[3].set_title("training loss")
     ax[3].grid(True, which="both", alpha=0.3)
     fig.suptitle(f"Progressive single-image fit  P={P} (G={G})  C={CHANNELS}")
-    fig.tight_layout(); os.makedirs("output", exist_ok=True)
-    fig.savefig("output/fit_one.png", dpi=120, bbox_inches="tight")
-    print("Saved output/fit_one.png")
+    fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out = os.path.join(OUTPUT_DIR, "fit_one.png")
+    fig.savefig(out, dpi=120, bbox_inches="tight")
+    print(f"Saved {out}")
 
 
 if __name__ == "__main__":
