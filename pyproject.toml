@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nixel"
+version = "0.1.0"
+description = "LINR (nixel): a local implicit neural representation for tomographic reconstruction"
+requires-python = ">=3.10"
+dependencies = ["torch", "numpy", "matplotlib", "pillow"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["linr"]

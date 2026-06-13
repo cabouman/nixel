@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.DS_Store
+.idea/
+
+# generated data and outputs (regenerable)
+img_data/
+output/
+linr_params/
+recons/
+*.linrd
+*.linrz
