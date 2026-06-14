@@ -167,6 +167,27 @@ def random_phantom(rng):
     return ell
 
 
+SHEPP_LOGAN = [   # the classic (modified / Toft) Shepp-Logan ellipses
+    (1.0,  0.69,   0.92,   0.0,    0.0,     0.0),
+    (-0.8, 0.6624, 0.874,  0.0,   -0.0184,  0.0),
+    (-0.2, 0.11,   0.31,   0.22,   0.0,   -18.0),
+    (-0.2, 0.16,   0.41,  -0.22,   0.0,    18.0),
+    (0.1,  0.21,   0.25,   0.0,    0.35,    0.0),
+    (0.1,  0.046,  0.046,  0.0,    0.1,     0.0),
+    (0.1,  0.046,  0.046,  0.0,   -0.1,     0.0),
+    (0.1,  0.046,  0.023, -0.08,  -0.605,   0.0),
+    (0.1,  0.023,  0.023,  0.0,   -0.606,   0.0),
+    (0.1,  0.023,  0.046,  0.06,  -0.605,   0.0),
+]
+
+
+def shepp_logan():
+    """The classic (modified) Shepp-Logan phantom as an ellipse list, oriented for
+    pixel_grid's y-down convention (y0 and phi flipped vs. the textbook y-up values)
+    so it renders head-up."""
+    return [(I, a, b, x0, -y0, -phi) for (I, a, b, x0, y0, phi) in SHEPP_LOGAN]
+
+
 class EllipseField:
     """A continuous (analytic) ellipse phantom, sampled at any coordinates."""
 

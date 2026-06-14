@@ -33,7 +33,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from linr import pixel_grid, eval_ellipses, random_phantom
+from linr import pixel_grid, eval_ellipses, random_phantom, shepp_logan
 from _paths import NATURAL_DIR, PHANTOM_DIR
 
 
@@ -101,7 +101,7 @@ def build_phantom(num, size, seed_start, force):
         js = os.path.join(PHANTOM_DIR, f"phantom_{s}.json")
         if os.path.exists(png) and os.path.exists(js) and not force:
             continue
-        ellipses = random_phantom(random.Random(s))
+        ellipses = shepp_logan() if s == 0 else random_phantom(random.Random(s))
         img = eval_ellipses(coords, ellipses).clamp(0, 1).numpy()   # clamp for viewing
         Image.fromarray((img * 255).astype(np.uint8)).save(png)
         json.dump({"size": size, "ellipses": ellipses}, open(js, "w"), indent=1)
