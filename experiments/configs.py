@@ -43,13 +43,6 @@ class ExperimentConfig:
 EXPERIMENTS = {
     # Main template: a blend of naturals + phantoms, holding out indices 0..9 of each
     # for testing. Edit here or override with --set; keep the resulting model with --name.
-    "natural": ExperimentConfig(
-        num_images=200, image_start=10,     # natural images
-        num_phantoms=0, phantom_start=10,   # phantom images: image 0 is Shepp-Logan
-        iters_per_stage=20000, checkpoint_every=2000,
-        lr=1e-2, theta_lr_frac=1.0,
-        recon_image=0, recon_steps=1000,
-    ),
     "refine": ExperimentConfig(
         num_images=200, image_start=10,  # natural images
         num_phantoms=0, phantom_start=10,  # phantom images: image 0 is Shepp-Logan
@@ -69,6 +62,13 @@ EXPERIMENTS = {
         num_phantoms=0, phantom_start=10,  # phantom images: image 0 is Shepp-Logan
         iters_per_stage=20000, checkpoint_every=2000,
         lr=1e-3, theta_lr_frac=0.5,
+        recon_image=0, recon_steps=1000,
+    ),
+    "best-v4": ExperimentConfig(
+        num_images=100, image_start=10,  # natural images
+        num_phantoms=0, phantom_start=10,  # phantom images: image 0 is Shepp-Logan
+        iters_per_stage=20000, checkpoint_every=2000,
+        lr=2e-3, theta_lr_frac=1.0,
         recon_image=0, recon_steps=1000,
     ),
 }
