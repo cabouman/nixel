@@ -200,6 +200,9 @@ class ReconConfig:
     init_scale: float = 1.0
     regularizer: Optional[Callable] = None
     on_step: Optional[Callable] = None
+    adapt_theta: bool = False            # also fine-tune theta (warm-started prior)
+    theta_lr: Optional[float] = None     # theta LR while adapting; None -> 0.1*lr
+    theta_warmup: int = 0                # z-only steps before unfreezing theta
 
 
 @dataclasses.dataclass
@@ -378,34 +381,55 @@ class LinrDecoder(nn.Module):
                                zero_init=False, on_step=cfg.on_step)
 
     def reconstruct(self, y, A: ForwardOperator, cfg: ReconConfig) -> ReconResult:
-        # Image-fitting case (A = ImageGrid): freeze theta, fit a fresh (z, a) by
-        # stochastic coordinate sampling against the measurement image y.
+        # Image-fitting case (A = ImageGrid): fit a fresh (z, a) against y. By default
+        # theta is frozen (z-only reconstruction). If cfg.adapt_theta, also fine-tune
+        # the warm-started theta -- but keep it frozen for the first cfg.theta_warmup
+        # steps (let z settle so a cold z does not corrupt the prior) and then adapt it
+        # at the gentler cfg.theta_lr. z/a follow a cosine over all steps; theta follows
+        # a fresh cosine over the post-warmup window.
         device = next(self.parameters()).device
         N = A.N
         G = cfg.grid or (N // self.P)
         recon = Reconstruction(self, G, init_scale=cfg.init_scale)
         target_field = ArrayField(y.to(device))
 
-        frozen = list(self.mlp.parameters())
-        for p in frozen:
-            p.requires_grad_(False)
-        opt = torch.optim.Adam(recon.parameters(), lr=cfg.lr)
-        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=cfg.steps)
+        theta = list(self.mlp.parameters())
+        adapt = bool(cfg.adapt_theta)
+        warm = cfg.theta_warmup if adapt else cfg.steps      # theta frozen for `warm` steps
+        tlr = cfg.theta_lr if cfg.theta_lr is not None else 0.1 * cfg.lr
+
+        groups = [{"params": list(recon.parameters()), "lr": cfg.lr}]
+        if adapt:
+            groups.append({"params": theta, "lr": tlr})
+        opt = torch.optim.Adam(groups)
+
+        def theta_trainable(flag):
+            for p in theta:
+                p.requires_grad_(flag)
+        theta_trainable(False)               # frozen during warmup (and always, if not adapting)
 
         losses = []
         for step in range(cfg.steps):
+            if adapt and step == warm:
+                theta_trainable(True)        # unfreeze theta after the z warmup
+            opt.param_groups[0]["lr"] = cfg.lr * 0.5 * (1 + math.cos(math.pi * step / cfg.steps))
+            if adapt:
+                if step >= warm:
+                    tt, TT = step - warm, max(1, cfg.steps - warm)
+                    opt.param_groups[1]["lr"] = tlr * 0.5 * (1 + math.cos(math.pi * tt / TT))
+                else:
+                    opt.param_groups[1]["lr"] = 0.0
             coords = torch.rand(cfg.coords_per_step, 2, device=device) * 2 - 1
             with torch.no_grad():
                 target = target_field.sample(coords)
             loss = F.mse_loss(recon.field(coords), target)
             if cfg.regularizer:
                 loss = loss + cfg.regularizer(recon.z)
-            opt.zero_grad(); loss.backward(); opt.step(); sched.step()
+            opt.zero_grad(); loss.backward(); opt.step()
             losses.append(loss.item())
             if cfg.on_step:
                 cfg.on_step(step, loss.item())
-        for p in frozen:
-            p.requires_grad_(True)
+        theta_trainable(True)                # leave decoder params trainable afterwards
         return ReconResult(recon, losses, losses[-1])
 
     # ----- persistence (.linrd); B is regenerated from P, so only config+theta saved -----

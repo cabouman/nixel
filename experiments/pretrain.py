@@ -13,10 +13,10 @@ reconstruct an image with it.
 # ============================ PARAMETERS ============================
 P               = 8       # pixels per nixel  (NEW decoder only; ignored if loading)
 CHANNELS        = 8       # C                 (NEW decoder only; ignored if loading)
-NUM_IMAGES      = 8       # images from img_data/natural to train on
+NUM_IMAGES      = 1       # images from img_data/natural to train on
 ITERS_PER_STAGE = 2000    # progressive: steps per band; joint: total = (M+1)*this
 LR              = 1e-3
-COORDS          = 32768   # coords per step
+COORDS          = 65536   # coords per step
 K0              = 0       # starting band (progressive)
 PROGRESSIVE     = True    # True: fresh coarse-to-fine; False: joint (to continue)
 LOAD_DECODER    = ""      # "" = start fresh; else a .linrd filename in models/ to continue
