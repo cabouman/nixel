@@ -12,9 +12,9 @@ IMAGE       = 0        # which nat_<k>.png to reconstruct
 RECON_STEPS = 10000    # z-fit iterations; = pretrain total (M+1)*2000
 LR          = 1e-3     # z (and a) learning rate
 COORDS      = 65536    # coords per step
-ADAPT_THETA = False    # also fine-tune theta (warm-started prior), not just z
-THETA_LR    = None     # theta LR while adapting; None -> 0.1*LR
-WARMUP      = 500      # z-only steps before unfreezing theta (ignored if not adapting)
+ADAPT_THETA = True     # fine-tune theta (warm-started prior) in addition to z -- validated default
+THETA_LR    = None     # theta LR while adapting; None -> LR (equal-rate joint fine-tune)
+WARMUP      = 200      # z-only steps before unfreezing theta
 SAVE_RECON  = True     # also save the reconstruction as a .linrz
 SEED        = 0
 # ====================================================================
@@ -41,7 +41,7 @@ def main():
     path = paths[IMAGE]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // dec.P
-    mode = (f"adapt-theta (theta_lr={THETA_LR or 0.1*LR:.1e}, warmup={WARMUP})"
+    mode = (f"adapt-theta (theta_lr={(THETA_LR if THETA_LR is not None else LR):.1e}, warmup={WARMUP})"
             if ADAPT_THETA else "frozen theta (z only)")
     print(f"decoder {DECODER} (P={dec.P}, C={dec.channels}) | reconstruct "
           f"{os.path.basename(path)}  {N}x{N} (G={G}) | {mode}")

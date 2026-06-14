@@ -13,7 +13,7 @@ IMAGE    = 0          # nat_<k>.png the decoder was trained on
 STEPS    = 10000      # z-fit iterations per arm
 LR       = 1e-3       # z (and a) learning rate
 COORDS   = 65536      # random pixels per step
-THETA_LR = None       # theta LR while adapting; None -> 0.1*LR
+THETA_LR = 1e-4       # pinned: this study used 0.1*LR (library default is now LR)
 WARMUP   = 500        # z-only steps before unfreezing theta (adapt arm)
 SEED     = 0          # shared z-init / coord stream
 # ====================================================================
@@ -22,6 +22,8 @@ import glob, math, os, random
 import numpy as np, torch
 from PIL import Image
 from linr import LinrDecoder, ImageGrid, ReconConfig, get_device
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # experiments/ (for _paths)
 from _paths import NATURAL_DIR, OUTPUT_DIR, MODELS_DIR
 
 

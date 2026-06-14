@@ -201,7 +201,7 @@ class ReconConfig:
     regularizer: Optional[Callable] = None
     on_step: Optional[Callable] = None
     adapt_theta: bool = False            # also fine-tune theta (warm-started prior)
-    theta_lr: Optional[float] = None     # theta LR while adapting; None -> 0.1*lr
+    theta_lr: Optional[float] = None     # theta LR while adapting; None -> lr (equal-rate, validated best)
     theta_warmup: int = 0                # z-only steps before unfreezing theta
 
 
@@ -396,7 +396,7 @@ class LinrDecoder(nn.Module):
         theta = list(self.mlp.parameters())
         adapt = bool(cfg.adapt_theta)
         warm = cfg.theta_warmup if adapt else cfg.steps      # theta frozen for `warm` steps
-        tlr = cfg.theta_lr if cfg.theta_lr is not None else 0.1 * cfg.lr
+        tlr = cfg.theta_lr if cfg.theta_lr is not None else cfg.lr
 
         groups = [{"params": list(recon.parameters()), "lr": cfg.lr}]
         if adapt:
