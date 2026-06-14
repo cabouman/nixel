@@ -6,6 +6,7 @@ Run from the experiments/ directory:
 
     python reconstruct.py --exp single
     python reconstruct.py --exp many --image 7
+    python reconstruct.py --exp many --database phantom --image 3
 
 Loads runs/<exp>/decoder.linrd (run pretrain.py --exp <exp> first) and writes
 results to runs/<exp>/recon/.
@@ -30,6 +31,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", default="single", help="experiment name in configs.py")
     ap.add_argument("--image", type=int, default=None, help="override recon_image (sorted index)")
+    ap.add_argument("--database", choices=["natural", "phantom"], default=None,
+                    help="which DB to reconstruct from (default: the config's database)")
     ap.add_argument("--set", nargs="*", default=[], metavar="key=value")
     args = ap.parse_args()
     cfg = get_experiment(args.exp, args.set)
@@ -44,13 +47,14 @@ def main():
     dec = LinrDecoder.load(dpath, device=dev)
 
     image = cfg.recon_image if args.image is None else args.image
-    paths = sorted(glob.glob(os.path.join(DB_DIRS[cfg.database], "*.png")))
+    database = args.database or cfg.database
+    paths = sorted(glob.glob(os.path.join(DB_DIRS[database], "*.png")))
     path = paths[image]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // dec.P; gt = img
     tlr = THETA_LR if THETA_LR is not None else cfg.lr
     mode = f"adapt-theta (theta_lr={tlr:.1e}, warmup={WARMUP})" if ADAPT_THETA else "frozen theta"
-    print(f"[{args.exp}] decoder (P={dec.P} C={dec.channels}) | {os.path.basename(path)} "
+    print(f"[{args.exp}] decoder (P={dec.P} C={dec.channels}) | {database} {os.path.basename(path)} "
           f"{N}x{N} (G={G}) | {mode} | {cfg.recon_steps} steps")
 
     res = dec.reconstruct(img, ImageGrid(N, dev),
@@ -69,7 +73,7 @@ def main():
             print(f"    iter {k:6d}:  {prox[max(0, k-25):k].mean():.2f} dB")
 
     out_dir = os.path.join(run_dir, "recon"); os.makedirs(out_dir, exist_ok=True)
-    tag = f"img{image}" + ("_adapt" if ADAPT_THETA else "")
+    tag = f"{database}_img{image}" + ("_adapt" if ADAPT_THETA else "")
     res.recon.save(os.path.join(out_dir, f"{tag}.linrz"),
                    metadata={"image": os.path.basename(path), "psnr": psnr})
 
