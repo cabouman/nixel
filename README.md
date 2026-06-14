@@ -34,30 +34,31 @@ docs/            theory + API
 
 ## Use
 
-Experiments are named in [`experiments/configs.py`](experiments/configs.py)
-(`single`, `many`, ...). Select one with `--exp`; override fields ad hoc with
-`--set key=value`.
+Run everything from the `experiments/` directory. Experiments are named in
+[`configs.py`](experiments/configs.py) (`single`, `many`, ...). Select one with
+`--exp`; override fields ad hoc with `--set key=value`.
 
 ```bash
-python experiments/build_databases.py             # build img_data/{natural,phantom}
+cd experiments              # all commands below are run from here
 
-python experiments/pretrain.py --exp single       # pretrain -> runs/single/decoder.linrd
-python experiments/reconstruct.py --exp single    # reconstruct (warm-start adapt-theta)
+python build_databases.py                 # build img_data/{natural,phantom}
+
+python pretrain.py --exp single           # pretrain -> runs/single/decoder.linrd
+python reconstruct.py --exp single        # reconstruct (warm-start adapt-theta)
 
 # long job: kick off, leave it, resume after an interruption
-# (run from the repo root; outputs live under experiments/runs/, not ./runs/)
-mkdir -p experiments/runs
-nohup python experiments/pretrain.py --exp many > experiments/runs/many.log 2>&1 &
-python experiments/pretrain.py --exp many --resume   # continue from experiments/runs/many/state.pt
+nohup python pretrain.py --exp many > runs/many.log 2>&1 &
+tail -f runs/many.log                     # watch progress
+python pretrain.py --exp many --resume    # continue from runs/many/state.pt
 
-pytest                                             # run the tests
+cd .. && pytest                           # tests run from the repo root
 ```
 
 Reference studies (kept frozen, not part of the pipeline) live in
 `experiments/archive/` — the progressive and adapt-theta A/B comparisons and the
 `fit_one.py` single-image probe; see [`archive/README.md`](experiments/archive/README.md).
 
-The four typical commands are collected in `experiments/run_exp.sh`.
+The four typical commands are collected in `run_exp.sh` (run from `experiments/`).
 
 Typical workflow: `build_databases` → `pretrain --exp <name>` (writes
 `runs/<name>/`) → `reconstruct --exp <name>` (loads `runs/<name>/decoder.linrd`).
@@ -65,6 +66,7 @@ Long `--exp many` runs checkpoint every `checkpoint_every` steps to
 `state.pt`; `--resume` continues from the run's *saved* config (CLI overrides are
 ignored on resume).
 
-Scripts run from anywhere — paths are anchored to `experiments/`. Runs on CUDA,
-Apple MPS, or CPU automatically. All generated data lives in `experiments/img_data/`
-and `experiments/runs/`, both gitignored.
+Data and output paths are anchored to `experiments/` (so a script still works if
+launched from elsewhere), but the convention is to run from `experiments/`. Runs on
+CUDA, Apple MPS, or CPU automatically. All generated data lives in `img_data/` and
+`runs/` (under `experiments/`), both gitignored.

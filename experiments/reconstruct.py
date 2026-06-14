@@ -2,11 +2,13 @@
 Reconstruct an image with a pretrained decoder from a run, using the validated
 adapt-theta recipe (warm-started theta, fine-tune theta + z, theta_lr = lr, warmup).
 
-    python experiments/reconstruct.py --exp single
-    python experiments/reconstruct.py --exp many --image 7
+Run from the experiments/ directory:
 
-Loads experiments/runs/<exp>/decoder.linrd (run pretrain.py --exp <exp> first) and
-writes results to experiments/runs/<exp>/recon/.
+    python reconstruct.py --exp single
+    python reconstruct.py --exp many --image 7
+
+Loads runs/<exp>/decoder.linrd (run pretrain.py --exp <exp> first) and writes
+results to runs/<exp>/recon/.
 """
 
 # adapt-theta recipe (validated defaults; see archive/ab_*):

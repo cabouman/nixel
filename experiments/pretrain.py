@@ -1,14 +1,15 @@
 """
 Pretrain a LINR decoder for a named experiment, into its own run directory.
+Run from the experiments/ directory:
 
-    python experiments/pretrain.py --exp single
-    python experiments/pretrain.py --exp many                 # long job; checkpoints
-    nohup python experiments/pretrain.py --exp many > runs/many/train.log 2>&1 &
-    python experiments/pretrain.py --exp many --resume        # continue after interruption
+    python pretrain.py --exp single
+    python pretrain.py --exp many                 # long job; checkpoints
+    nohup python pretrain.py --exp many > runs/many.log 2>&1 &
+    python pretrain.py --exp many --resume        # continue after interruption
 
-Outputs land in experiments/runs/<exp>/:  config.json, state.pt (resumable),
-decoder.linrd (latest theta), loss.npy, pretrain_loss.png. Edit experiments/configs.py
-to change parameters or add experiments; override ad hoc with `--set key=value`.
+Outputs land in runs/<exp>/:  config.json, state.pt (resumable), decoder.linrd
+(latest theta), loss.npy, pretrain_loss.png. Edit configs.py to change parameters
+or add experiments; override ad hoc with `--set key=value`.
 """
 
 import argparse, dataclasses, glob, json, os, random

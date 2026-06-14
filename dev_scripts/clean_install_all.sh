@@ -30,5 +30,5 @@ pip install -e ".[dev]"
 
 echo
 echo "Done. Use:  conda activate $NAME"
-echo "Then run experiments from the repo root, e.g.  python experiments/fit_one.py"
+echo "Then, from the experiments/ directory, e.g.  python pretrain.py --exp single"
 echo
