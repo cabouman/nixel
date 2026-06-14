@@ -45,8 +45,10 @@ python experiments/pretrain.py --exp single       # pretrain -> runs/single/deco
 python experiments/reconstruct.py --exp single    # reconstruct (warm-start adapt-theta)
 
 # long job: kick off, leave it, resume after an interruption
-nohup python experiments/pretrain.py --exp many > runs/many.log 2>&1 &
-python experiments/pretrain.py --exp many --resume   # continue from runs/many/state.pt
+# (run from the repo root; outputs live under experiments/runs/, not ./runs/)
+mkdir -p experiments/runs
+nohup python experiments/pretrain.py --exp many > experiments/runs/many.log 2>&1 &
+python experiments/pretrain.py --exp many --resume   # continue from experiments/runs/many/state.pt
 
 pytest                                             # run the tests
 ```
