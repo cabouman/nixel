@@ -116,7 +116,7 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--which", choices=["natural", "phantom", "both"], default="both",
                    help="which database(s) to build (default: both)")
-    p.add_argument("--num", type=int, default=100,
+    p.add_argument("--num", type=int, default=200,
                    help="number of images per database (default: 100)")
     p.add_argument("--size", type=int, default=512,
                    help="array size N (images are N x N) (default: 512)")
