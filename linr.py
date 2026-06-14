@@ -333,52 +333,93 @@ class LinrDecoder(nn.Module):
         return TrainReport(losses, losses[-1], time.time() - t0)
 
     # ----- progressive (coarse-to-fine) training, theory-v2 §2.6 -----
+    def _make_ckpt(self, zs, a_s, opt, step, losses):
+        """Full, resumable training state (tensors moved to CPU for portability)."""
+        return {
+            "config": self.config,
+            "theta": {k: v.detach().cpu() for k, v in self.mlp.state_dict().items()},
+            "zs": [z.detach().cpu() for z in zs],
+            "a_s": [a.detach().cpu() for a in a_s],
+            "opt": opt.state_dict(),
+            "global_step": step,
+            "loss_history": list(losses),
+            "rng_torch": torch.get_rng_state(),
+            "rng_np": np.random.get_state(),
+            "rng_py": random.getstate(),
+        }
+
     def _fit_bands(self, dataset, stages, base_lr, coords_per_step, grid,
-                   zero_init, on_step):
+                   zero_init, on_step, checkpoint_every=0, checkpoint_fn=None, resume=None):
         """Schedule-based trainer shared by progressive and the joint baseline.
         `stages` is a list of (bandwidth_K, n_steps); each stage runs a fresh cosine
-        LR from base_lr down to ~0. Returns (TrainReport, zs, a_s)."""
+        LR from base_lr down to ~0. Returns (TrainReport, zs, a_s).
+
+        Resumable: if `resume` (a dict from `_make_ckpt`, loaded onto `device`) is given,
+        continue from the saved global step with the saved weights/latents/optimizer/RNG.
+        If `checkpoint_fn` is given it is called as checkpoint_fn(step, ckpt) every
+        `checkpoint_every` steps and once at the end."""
         device = next(self.parameters()).device
         n_img, C = len(dataset), self.channels
-        zs = [nn.Parameter(0.01 * torch.randn(C, grid, grid, device=device)) for _ in dataset]
-        a_s = [nn.Parameter(torch.zeros((), device=device)) for _ in dataset]
-        if zero_init:
-            self.init_progressive(stages[0][0])   # zero feature cols; set first band
-        else:
-            self.set_bandwidth(self.M)            # full bandwidth (joint baseline)
-        opt = torch.optim.Adam(list(self.mlp.parameters()) + zs + a_s, lr=base_lr)
-
-        losses, step, t0 = [], 0, time.time()
+        total = sum(n for _, n in stages)
+        bounds, s = [], 0                              # global-step -> stage map
         for K, n in stages:
+            bounds.append((s, s + n, K, n)); s += n
+
+        if resume is not None:
+            self.mlp.load_state_dict(resume["theta"])
+            zs = [nn.Parameter(z.to(device)) for z in resume["zs"]]
+            a_s = [nn.Parameter(a.to(device)) for a in resume["a_s"]]
+            opt = torch.optim.Adam(list(self.mlp.parameters()) + zs + a_s, lr=base_lr)
+            opt.load_state_dict(resume["opt"])
+            torch.set_rng_state(resume["rng_torch"].to("cpu"))
+            np.random.set_state(resume["rng_np"]); random.setstate(resume["rng_py"])
+            losses, start = list(resume["loss_history"]), resume["global_step"]
+        else:
+            zs = [nn.Parameter(0.01 * torch.randn(C, grid, grid, device=device)) for _ in dataset]
+            a_s = [nn.Parameter(torch.zeros((), device=device)) for _ in dataset]
+            if zero_init:
+                self.init_progressive(stages[0][0])   # zero feature cols; set first band
+            else:
+                self.set_bandwidth(self.M)            # full bandwidth (joint baseline)
+            opt = torch.optim.Adam(list(self.mlp.parameters()) + zs + a_s, lr=base_lr)
+            losses, start = [], 0
+
+        t0 = time.time()
+        for step in range(start, total):
+            bs, _, K, n = next(b for b in bounds if b[0] <= step < b[1])
             self.set_bandwidth(K)
-            for t in range(n):
-                _set_cosine_lr(opt, base_lr, t, n)   # fresh cosine restart per stage
-                i = random.randrange(n_img)
-                coords = torch.rand(coords_per_step, 2, device=device) * 2 - 1
-                with torch.no_grad():
-                    target = dataset[i].sample(coords)
-                loss = F.mse_loss(self.decode(coords, zs[i], a_s[i]), target)
-                opt.zero_grad(); loss.backward(); opt.step()
-                losses.append(loss.item())
-                if on_step:
-                    on_step(step, K, loss.item())
-                step += 1
+            _set_cosine_lr(opt, base_lr, step - bs, n)   # fresh cosine restart per stage
+            i = random.randrange(n_img)
+            coords = torch.rand(coords_per_step, 2, device=device) * 2 - 1
+            with torch.no_grad():
+                target = dataset[i].sample(coords)
+            loss = F.mse_loss(self.decode(coords, zs[i], a_s[i]), target)
+            opt.zero_grad(); loss.backward(); opt.step()
+            losses.append(loss.item())
+            if on_step:
+                on_step(step, K, loss.item())
+            if checkpoint_fn and checkpoint_every and (step + 1) % checkpoint_every == 0:
+                checkpoint_fn(step + 1, self._make_ckpt(zs, a_s, opt, step + 1, losses))
         self.set_bandwidth(self.M)                # leave decoder at full bandwidth
+        if checkpoint_fn:
+            checkpoint_fn(total, self._make_ckpt(zs, a_s, opt, total, losses))
         return TrainReport(losses, losses[-1], time.time() - t0), zs, a_s
 
-    def pretrain_progressive(self, dataset, cfg: ProgressiveConfig):
+    def pretrain_progressive(self, dataset, cfg: ProgressiveConfig, **kw):
         """Coarse-to-fine: sweep K = k0..M one ring per stage, iters_per_stage steps
-        each, warm-started. Returns (TrainReport, zs, a_s)."""
+        each, warm-started. Returns (TrainReport, zs, a_s). `kw` (checkpoint_every,
+        checkpoint_fn, resume) is forwarded to the trainer for resumable runs."""
         stages = [(K, cfg.iters_per_stage) for K in range(cfg.k0, self.M + 1)]
         return self._fit_bands(dataset, stages, cfg.lr, cfg.coords_per_step,
-                               cfg.grid, zero_init=True, on_step=cfg.on_step)
+                               cfg.grid, zero_init=True, on_step=cfg.on_step, **kw)
 
-    def pretrain_joint(self, dataset, total_steps, cfg: ProgressiveConfig):
+    def pretrain_joint(self, dataset, total_steps, cfg: ProgressiveConfig, **kw):
         """Equal-budget baseline: full bandwidth from the start, standard init,
-        `total_steps` steps, single cosine. Returns (TrainReport, zs, a_s)."""
+        `total_steps` steps, single cosine. Returns (TrainReport, zs, a_s). `kw` is
+        forwarded to the trainer (checkpoint_every, checkpoint_fn, resume)."""
         return self._fit_bands(dataset, [(self.M, total_steps)], cfg.lr,
                                cfg.coords_per_step, cfg.grid,
-                               zero_init=False, on_step=cfg.on_step)
+                               zero_init=False, on_step=cfg.on_step, **kw)
 
     def reconstruct(self, y, A: ForwardOperator, cfg: ReconConfig) -> ReconResult:
         # Image-fitting case (A = ImageGrid): fit a fresh (z, a) against y. By default

@@ -22,7 +22,10 @@ pip install -e ".[dev]"     # editable install of the `linr` package + pytest
 
 ```
 linr.py          the package (import linr)
-experiments/     runnable scripts; data + figures live here (gitignored)
+experiments/     runnable scripts; data + run outputs live here (gitignored)
+  configs.py     named experiment presets (the one place params live)
+  runs/          per-experiment outputs: config.json, decoder.linrd, state.pt, figures
+  archive/       settled A/B studies (progressive, adapt-theta) + notes
 tests/           pytest correctness checks
 dev_scripts/     conda-env helpers
 docs/            theory + API
@@ -30,20 +33,30 @@ docs/            theory + API
 
 ## Use
 
+Experiments are named in [`experiments/configs.py`](experiments/configs.py)
+(`single`, `many`, ...). Select one with `--exp`; override fields ad hoc with
+`--set key=value`.
+
 ```bash
-python experiments/build_databases.py     # build experiments/img_data/{natural,phantom}
-python experiments/fit_one.py             # single-image progressive fit (probe)
-python experiments/pretrain.py            # train a decoder (progressive or continue) and SAVE it
-python experiments/reconstruct.py         # reconstruct an image with a saved decoder
-python experiments/ab_progressive.py      # progressive vs joint A/B (comparison)
-pytest                                     # run the tests
+python experiments/build_databases.py             # build img_data/{natural,phantom}
+
+python experiments/pretrain.py --exp single       # pretrain -> runs/single/decoder.linrd
+python experiments/reconstruct.py --exp single    # reconstruct (warm-start adapt-theta)
+
+# long job: kick off, leave it, resume after an interruption
+nohup python experiments/pretrain.py --exp many > runs/many.log 2>&1 &
+python experiments/pretrain.py --exp many --resume   # continue from runs/many/state.pt
+
+python experiments/fit_one.py                     # single-image progressive fit (probe)
+pytest                                             # run the tests
 ```
 
-Typical workflow: `build_databases` → `pretrain` (saves a `.linrd` decoder in
-`experiments/models/`) → `reconstruct` (loads it, fits an image).
+Typical workflow: `build_databases` → `pretrain --exp <name>` (writes
+`runs/<name>/`) → `reconstruct --exp <name>` (loads `runs/<name>/decoder.linrd`).
+Long `--exp many` runs checkpoint every `checkpoint_every` steps to
+`state.pt`; `--resume` continues from the run's *saved* config (CLI overrides are
+ignored on resume).
 
-Scripts can be run from anywhere — data and output paths are anchored to
-`experiments/` (`experiments/img_data/` and `experiments/output/`). Edit the
-parameters at the top of each script. Runs on CUDA, Apple MPS, or CPU
-automatically. Generated data (`img_data/`, `output/`, `*.linrd`, `*.linrz`) is
-gitignored.
+Scripts run from anywhere — paths are anchored to `experiments/`. Runs on CUDA,
+Apple MPS, or CPU automatically. Generated data (`img_data/`, `output/`, `runs/`,
+`*.linrd`, `*.linrz`) is gitignored.

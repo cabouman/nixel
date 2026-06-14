@@ -14,5 +14,6 @@ output/
 models/
 linr_params/
 recons/
+runs/
 *.linrd
 *.linrz

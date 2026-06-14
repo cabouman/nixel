@@ -1,99 +1,128 @@
 """
-Pretrain (or continue training) a LINR decoder on a set of images and SAVE it.
+Pretrain a LINR decoder for a named experiment, into its own run directory.
 
-- PROGRESSIVE = True : fresh coarse-to-fine training -- builds the Fourier bands
-  up one ring at a time. Use for a NEW decoder.
-- PROGRESSIVE = False: full-bandwidth (joint) training. Use to CONTINUE a saved
-  decoder (set LOAD_DECODER); progressive would zero its learned features.
+    python experiments/pretrain.py --exp single
+    python experiments/pretrain.py --exp many                 # long job; checkpoints
+    nohup python experiments/pretrain.py --exp many > runs/many/train.log 2>&1 &
+    python experiments/pretrain.py --exp many --resume        # continue after interruption
 
-The trained decoder is saved to experiments/models/. Then use reconstruct.py to
-reconstruct an image with it.
+Outputs land in experiments/runs/<exp>/:  config.json, state.pt (resumable),
+decoder.linrd (latest theta), loss.npy, pretrain_loss.png. Edit experiments/configs.py
+to change parameters or add experiments; override ad hoc with `--set key=value`.
 """
 
-# ============================ PARAMETERS ============================
-P               = 8       # pixels per nixel  (NEW decoder only; ignored if loading)
-CHANNELS        = 8       # C                 (NEW decoder only; ignored if loading)
-NUM_IMAGES      = 1       # images from img_data/natural to train on
-ITERS_PER_STAGE = 2000    # progressive: steps per band; joint: total = (M+1)*this
-LR              = 1e-3
-COORDS          = 65536   # coords per step
-K0              = 0       # starting band (progressive)
-PROGRESSIVE     = True    # True: fresh coarse-to-fine; False: joint (to continue)
-LOAD_DECODER    = ""      # "" = start fresh; else a .linrd filename in models/ to continue
-SAVE_DECODER    = ""      # "" = auto-name in models/; else a .linrd filename in models/
-SEED            = 0
-# ====================================================================
-
-import glob, os, random
+import argparse, dataclasses, glob, json, os, random
 import numpy as np, torch
 from PIL import Image
 from linr import LinrDecoder, ArrayField, ProgressiveConfig, get_device
-from _paths import NATURAL_DIR, OUTPUT_DIR, MODELS_DIR
+from _paths import NATURAL_DIR, PHANTOM_DIR, RUNS_DIR
+from configs import get_experiment, ExperimentConfig
+
+DB_DIRS = {"natural": NATURAL_DIR, "phantom": PHANTOM_DIR}
 
 
 def main():
-    torch.manual_seed(SEED); np.random.seed(SEED); random.seed(SEED)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--exp", default="single", help="experiment name in configs.py")
+    ap.add_argument("--resume", action="store_true", help="continue from runs/<exp>/state.pt")
+    ap.add_argument("--set", nargs="*", default=[], metavar="key=value",
+                    help="override config fields, e.g. --set iters_per_stage=50000")
+    args = ap.parse_args()
     dev = get_device()
+    run_dir = os.path.join(RUNS_DIR, args.exp)
+    os.makedirs(run_dir, exist_ok=True)
+    state_path = os.path.join(run_dir, "state.pt")
+    decoder_path = os.path.join(run_dir, "decoder.linrd")
+    cfg_path = os.path.join(run_dir, "config.json")
 
-    paths = sorted(glob.glob(os.path.join(NATURAL_DIR, "nat_*.png")))[:NUM_IMAGES]
+    if args.resume:
+        # continue the SAME experiment: use the run's saved config, not the CLI
+        if not os.path.exists(state_path):
+            raise SystemExit(f"--resume: no checkpoint at {state_path}")
+        if not os.path.exists(cfg_path):
+            raise SystemExit(f"--resume: no config.json in {run_dir}")
+        if args.set:
+            print("  (ignoring --set on --resume; using the run's saved config)")
+        with open(cfg_path) as f:
+            saved = json.load(f)
+        fields = {f.name for f in dataclasses.fields(ExperimentConfig)}
+        cfg = ExperimentConfig(**{k: v for k, v in saved.items() if k in fields})
+    else:
+        cfg = get_experiment(args.exp, args.set)
+
+    torch.manual_seed(cfg.seed); np.random.seed(cfg.seed); random.seed(cfg.seed)
+
+    # ---- data ----
+    data_dir = DB_DIRS[cfg.database]
+    paths = sorted(glob.glob(os.path.join(data_dir, "*.png")))
+    paths = paths[cfg.image_start: cfg.image_start + cfg.num_images]
     if not paths:
-        raise SystemExit("No images -- run build_databases.py first.")
+        raise SystemExit(f"No images in {data_dir} -- run build_databases.py first.")
     imgs = [torch.from_numpy(np.asarray(Image.open(p).convert("L"), np.float32) / 255.0)
             for p in paths]
-    N = imgs[0].shape[0]
-
-    # fresh decoder, or load one to continue training
-    if LOAD_DECODER:
-        dec = LinrDecoder.load(os.path.join(MODELS_DIR, LOAD_DECODER), device=dev)
-        print(f"Loaded decoder {LOAD_DECODER} (P={dec.P}, C={dec.channels}, id {dec.id})")
-        if PROGRESSIVE:
-            print("  WARNING: PROGRESSIVE=True will ZERO the loaded feature columns "
-                  "(fresh curriculum). Set PROGRESSIVE=False to continue training.")
-    else:
-        dec = LinrDecoder(P, channels=CHANNELS, device=dev)
-    Pp, C, M = dec.P, dec.channels, dec.M
-    G = N // Pp
+    N = imgs[0].shape[0]; G = N // cfg.P
     dataset = [ArrayField(im.to(dev)) for im in imgs]
 
-    cfg = ProgressiveConfig(iters_per_stage=ITERS_PER_STAGE, lr=LR, coords_per_step=COORDS,
-                            grid=G, k0=K0,
-                            on_step=lambda s, K, l: (s % 1000 == 0) and
-                            print(f"  step {s:5d}  band {K}  mse {l:.3e}"))
+    # ---- decoder (built from config; theta restored below if resuming) ----
+    dec = LinrDecoder(cfg.P, channels=cfg.channels, hidden=cfg.hidden,
+                      layers=cfg.layers, out_act=cfg.out_act, device=dev)
+    M = dec.M
+    total = (M - cfg.k0 + 1) * cfg.iters_per_stage
 
-    if PROGRESSIVE:
-        n_stages = M - K0 + 1
-        print(f"{len(imgs)} img {N}x{N} | P={Pp}(G={G}) C={C} | PROGRESSIVE bands "
-              f"{K0}..{M} ({n_stages}x{ITERS_PER_STAGE} = {n_stages*ITERS_PER_STAGE} steps)")
-        rep, _, _ = dec.pretrain_progressive(dataset, cfg)
-        mode = "prog"
+    resume_state = None
+    if args.resume:
+        resume_state = torch.load(state_path, map_location=dev, weights_only=False)
+        print(f"Resuming {args.exp} from step {resume_state['global_step']}/{total}")
+
+    mode = "progressive" if cfg.progressive else "joint"
+    print(f"[{args.exp}] {len(imgs)} {cfg.database} img {N}x{N} | P={cfg.P}(G={G}) C={cfg.channels} "
+          f"hidden={cfg.hidden} layers={cfg.layers} | {mode} | total {total} steps "
+          f"| checkpoint_every={cfg.checkpoint_every}")
+
+    # write config up front so an interrupted run is still resumable
+    def write_config(extra=None):
+        meta = {**dataclasses.asdict(cfg), "exp": args.exp, "total_steps": total}
+        with open(cfg_path, "w") as f:
+            json.dump({**meta, **(extra or {})}, f, indent=2)
+    write_config()
+
+    # ---- checkpointing ----
+    def save_ckpt(step, ckpt):
+        tmp = state_path + ".tmp"
+        torch.save(ckpt, tmp); os.replace(tmp, state_path)   # atomic full state for resume
+        dec.save(decoder_path)                               # latest theta deliverable
+        print(f"  [ckpt] step {step}/{total} -> {os.path.relpath(state_path, RUNS_DIR)}", flush=True)
+
+    log_every = max(1, total // 50)
+
+    def on_step(step, K, loss):
+        if step % log_every == 0:
+            print(f"  step {step:7d}/{total}  band {K}  mse {loss:.3e}", flush=True)
+
+    pcfg = ProgressiveConfig(iters_per_stage=cfg.iters_per_stage, lr=cfg.lr,
+                             coords_per_step=cfg.coords, grid=G, k0=cfg.k0, on_step=on_step)
+    kw = dict(checkpoint_every=cfg.checkpoint_every, checkpoint_fn=save_ckpt, resume=resume_state)
+    if cfg.progressive:
+        rep, _, _ = dec.pretrain_progressive(dataset, pcfg, **kw)
     else:
-        total = (M - K0 + 1) * ITERS_PER_STAGE
-        print(f"{len(imgs)} img {N}x{N} | P={Pp}(G={G}) C={C} | JOINT full-bandwidth "
-              f"{total} steps")
-        rep, _, _ = dec.pretrain_joint(dataset, total, cfg)
-        mode = "joint"
-    print(f"  done ({rep.seconds:.1f}s, final mse {rep.final_loss:.3e})")
+        rep, _, _ = dec.pretrain_joint(dataset, total, pcfg, **kw)
+    print(f"  done ({rep.seconds:.1f}s, final mse {rep.final_loss:.3e})  decoder id {dec.id}")
 
-    # save the decoder
-    name = SAVE_DECODER or f"decoder_P{Pp}_C{C}_n{NUM_IMAGES}_{mode}.linrd"
-    save_path = os.path.join(MODELS_DIR, name)
-    dec.save(save_path)
-    print(f"Saved decoder -> {save_path}  (id {dec.id})")
+    # ---- persist final config metadata + loss ----
+    write_config({"decoder_id": dec.id, "seconds": rep.seconds, "final_mse": rep.final_loss})
+    np.save(os.path.join(run_dir, "loss.npy"), np.asarray(rep.loss_history, np.float32))
 
-    # loss curve
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(6.5, 4.4))
     ax.semilogy(rep.loss_history, lw=0.8)
-    if PROGRESSIVE:
-        for k in range(1, M - K0 + 1):
-            ax.axvline(k * ITERS_PER_STAGE, color="0.7", ls=":", lw=0.6)
+    if cfg.progressive:
+        for k in range(1, M - cfg.k0 + 1):
+            ax.axvline(k * cfg.iters_per_stage, color="0.7", ls=":", lw=0.6)
     ax.set_xlabel("step"); ax.set_ylabel("MSE"); ax.grid(True, which="both", alpha=0.3)
-    ax.set_title(f"pretrain loss ({mode})  P={Pp}, C={C}, {NUM_IMAGES} img")
-    fig.tight_layout(); os.makedirs(OUTPUT_DIR, exist_ok=True)
-    tag = f"P{Pp}_C{C}_n{NUM_IMAGES}_T{ITERS_PER_STAGE}_{mode}"
-    out = os.path.join(OUTPUT_DIR, f"pretrain_{tag}.png")
-    fig.savefig(out, dpi=120, bbox_inches="tight")
-    print(f"Saved {out}")
+    ax.set_title(f"pretrain [{args.exp}] {mode}  {len(imgs)} img  P={cfg.P} C={cfg.channels}")
+    fig.tight_layout()
+    fig.savefig(os.path.join(run_dir, "pretrain_loss.png"), dpi=120, bbox_inches="tight")
+    print(f"Saved run -> {run_dir}  (decoder.linrd, config.json, loss.npy, pretrain_loss.png)")
 
 
 if __name__ == "__main__":
