@@ -18,9 +18,10 @@ python build_databases.py
 python pretrain.py --exp single
 python reconstruct.py --exp single --image 0
 
-# 3. many images (long): pretrain, then reconstruct image 0
+# 3. many images (long): pretrain, then reconstruct a natural and a phantom image
 python pretrain.py --exp many
-python reconstruct.py --exp many --image 0
+python reconstruct.py --exp many --image 0                      # natural image 0 (held out)
+python reconstruct.py --exp many --database phantom --image 0   # phantom image 0
 
 # --- alternative: background the long 'many' pretrain, watch it, reconstruct later ---
 #   nohup python pretrain.py --exp many > runs/many.log 2>&1 &
