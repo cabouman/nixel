@@ -12,10 +12,12 @@ from typing import Optional
 
 @dataclasses.dataclass
 class ExperimentConfig:
-    # ---- data ----
-    database: str = "natural"        # "natural" | "phantom"  (img_data/<database>)
-    num_images: int = 1              # how many images to pretrain on
-    image_start: int = 0             # index of the first image (sorted)
+    # ---- data: pretrain on num_images natural + num_phantoms phantom images ----
+    num_images: int = 1              # natural images to pretrain on (0 = none)
+    image_start: int = 0             # index of the first natural image (sorted); holds out 0..image_start-1
+    num_phantoms: int = 0            # phantom images to ALSO include in pretraining (0 = none)
+    phantom_start: int = 0           # index of the first phantom image (sorted)
+    database: str = "natural"        # which DB the RECONSTRUCTION target (recon_image) comes from
     # ---- decoder (lightweight: evaluated per-voxel per-CT-iteration) ----
     P: int = 8                       # pixels per nixel
     channels: int = 8                # C
@@ -45,9 +47,10 @@ EXPERIMENTS = {
     # Many-image pretraining -- a long job. Kick off and let it run; checkpoints every
     # 2000 steps so it survives interruption (resume with `--resume`).
     "many": ExperimentConfig(
-        num_images=200, image_start=0,
+        num_images=200, image_start=10,        # train on natural 10.. ; hold out 0..9 for testing
+        num_phantoms=0, phantom_start=0,       # set num_phantoms>0 to mix in phantom images
         iters_per_stage=20000, checkpoint_every=2000,
-        recon_image=0, recon_steps=10000,
+        recon_image=0, recon_steps=10000,      # recon_image=0 is held out (image_start=10)
     ),
 }
 

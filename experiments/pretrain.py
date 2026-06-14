@@ -19,7 +19,6 @@ from linr import LinrDecoder, ArrayField, ProgressiveConfig, get_device
 from _paths import NATURAL_DIR, PHANTOM_DIR, RUNS_DIR
 from configs import get_experiment, ExperimentConfig
 
-DB_DIRS = {"natural": NATURAL_DIR, "phantom": PHANTOM_DIR}
 
 
 def main():
@@ -53,12 +52,13 @@ def main():
 
     torch.manual_seed(cfg.seed); np.random.seed(cfg.seed); random.seed(cfg.seed)
 
-    # ---- data ----
-    data_dir = DB_DIRS[cfg.database]
-    paths = sorted(glob.glob(os.path.join(data_dir, "*.png")))
-    paths = paths[cfg.image_start: cfg.image_start + cfg.num_images]
+    # ---- data: num_images natural (from image_start) + num_phantoms phantom (from phantom_start) ----
+    nat = sorted(glob.glob(os.path.join(NATURAL_DIR, "*.png")))[cfg.image_start: cfg.image_start + cfg.num_images]
+    phn = sorted(glob.glob(os.path.join(PHANTOM_DIR, "*.png")))[cfg.phantom_start: cfg.phantom_start + cfg.num_phantoms]
+    paths = nat + phn
     if not paths:
-        raise SystemExit(f"No images in {data_dir} -- run build_databases.py first.")
+        raise SystemExit("No training images -- run build_databases.py first "
+                         "(or check num_images / num_phantoms).")
     imgs = [torch.from_numpy(np.asarray(Image.open(p).convert("L"), np.float32) / 255.0)
             for p in paths]
     N = imgs[0].shape[0]; G = N // cfg.P
@@ -76,9 +76,9 @@ def main():
         print(f"Resuming {args.exp} from step {resume_state['global_step']}/{total}")
 
     mode = "progressive" if cfg.progressive else "joint"
-    print(f"[{args.exp}] {len(imgs)} {cfg.database} img {N}x{N} | P={cfg.P}(G={G}) C={cfg.channels} "
-          f"hidden={cfg.hidden} layers={cfg.layers} | {mode} | total {total} steps "
-          f"| checkpoint_every={cfg.checkpoint_every}")
+    print(f"[{args.exp}] {len(nat)} natural + {len(phn)} phantom = {len(imgs)} img {N}x{N} | "
+          f"P={cfg.P}(G={G}) C={cfg.channels} hidden={cfg.hidden} layers={cfg.layers} | {mode} | "
+          f"total {total} steps | checkpoint_every={cfg.checkpoint_every}")
 
     # write config up front so an interrupted run is still resumable
     def write_config(extra=None):
