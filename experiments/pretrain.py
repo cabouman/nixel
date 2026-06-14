@@ -82,7 +82,8 @@ def main():
     mode = "progressive" if cfg.progressive else "joint"
     print(f"[{run_name}] {len(nat)} natural + {len(phn)} phantom = {len(imgs)} img {N}x{N} | "
           f"P={cfg.P}(G={G}) C={cfg.channels} hidden={cfg.hidden} layers={cfg.layers} | {mode} | "
-          f"total {total} steps | checkpoint_every={cfg.checkpoint_every}")
+          f"lr={cfg.lr:.0e} (theta {cfg.theta_lr_frac}x) | total {total} steps | "
+          f"checkpoint_every={cfg.checkpoint_every}")
 
     # write config up front so an interrupted run is still resumable
     def write_config(extra=None):
@@ -105,7 +106,8 @@ def main():
             print(f"  step {step:7d}/{total}  band {K}  mse {loss:.3e}", flush=True)
 
     pcfg = ProgressiveConfig(iters_per_stage=cfg.iters_per_stage, lr=cfg.lr,
-                             coords_per_step=cfg.coords, grid=G, k0=cfg.k0, on_step=on_step)
+                             theta_lr_frac=cfg.theta_lr_frac, coords_per_step=cfg.coords,
+                             grid=G, k0=cfg.k0, on_step=on_step)
     kw = dict(checkpoint_every=cfg.checkpoint_every, checkpoint_fn=save_ckpt, resume=resume_state)
     if cfg.progressive:
         rep, _, _ = dec.pretrain_progressive(dataset, pcfg, **kw)

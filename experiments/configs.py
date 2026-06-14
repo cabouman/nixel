@@ -26,7 +26,8 @@ class ExperimentConfig:
     # ---- pretraining ----
     progressive: bool = True         # coarse-to-fine (recommended for theta)
     iters_per_stage: int = 2000      # progressive: steps/band; joint: total steps
-    lr: float = 1e-3
+    lr: float = 1e-3                 # latent (z, a) LR
+    theta_lr_frac: float = 1.0       # theta LR = theta_lr_frac * lr (<1 -> theta gentler than the z latents)
     coords: int = 65536              # random pixels per step
     k0: int = 0                      # progressive starting band
     seed: int = 0
@@ -42,7 +43,7 @@ class ExperimentConfig:
 EXPERIMENTS = {
     # Quick, single-image case to run locally (matches the validated single-image flow).
     "single": ExperimentConfig(
-        num_images=1, image_start=0,
+        num_images=1, image_start=0,           # single image: no z undersampling -> lr=1e-3, frac=1.0
         iters_per_stage=2000, checkpoint_every=0,
         recon_image=0, recon_steps=1000,
     ),
@@ -52,6 +53,7 @@ EXPERIMENTS = {
         num_images=90, image_start=10,         # naturals 10..99 (hold out 0..9)
         num_phantoms=90, phantom_start=10,     # phantoms 10..99 (hold out 0..9 incl. Shepp-Logan)
         iters_per_stage=20000, checkpoint_every=2000,   # 5 stages x 20000 = 100,000 total
+        lr=1e-2, theta_lr_frac=0.5,            # decoupled: z fast (1e-2), theta gentler (5e-3); ~+1 dB at fixed budget
         recon_image=0, recon_steps=1000,
     ),
 }

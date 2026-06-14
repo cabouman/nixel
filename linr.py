@@ -231,7 +231,8 @@ class ProgressiveConfig:
     a fixed bandwidth, with a fresh cosine LR; bands sweep K = k0 .. M one ring at
     a time. pretrain_joint() reuses the same fields for the equal-budget baseline."""
     iters_per_stage: int = 1500
-    lr: float = 1e-3
+    lr: float = 1e-3                     # latent (z, a) LR
+    theta_lr_frac: float = 1.0           # theta LR = theta_lr_frac * lr (<1 -> theta gentler than z)
     coords_per_step: int = 65536
     grid: int = 128                      # G = N // P
     k0: int = 0                          # starting band
@@ -369,10 +370,12 @@ class LinrDecoder(nn.Module):
         }
 
     def _fit_bands(self, dataset, stages, base_lr, coords_per_step, grid,
-                   zero_init, on_step, checkpoint_every=0, checkpoint_fn=None, resume=None):
+                   zero_init, on_step, theta_lr_frac=1.0,
+                   checkpoint_every=0, checkpoint_fn=None, resume=None):
         """Schedule-based trainer shared by progressive and the joint baseline.
         `stages` is a list of (bandwidth_K, n_steps); each stage runs a fresh cosine
-        LR from base_lr down to ~0. Returns (TrainReport, zs, a_s).
+        LR from base_lr down to ~0. The latents (z, a) use base_lr; theta uses
+        theta_lr_frac * base_lr (its own param group). Returns (TrainReport, zs, a_s).
 
         Resumable: if `resume` (a dict from `_make_ckpt`, loaded onto `device`) is given,
         continue from the saved global step with the saved weights/latents/optimizer/RNG.
@@ -389,10 +392,6 @@ class LinrDecoder(nn.Module):
             self.mlp.load_state_dict(resume["theta"])
             zs = [nn.Parameter(z.to(device)) for z in resume["zs"]]
             a_s = [nn.Parameter(a.to(device)) for a in resume["a_s"]]
-            opt = torch.optim.Adam(list(self.mlp.parameters()) + zs + a_s, lr=base_lr)
-            opt.load_state_dict(resume["opt"])
-            torch.set_rng_state(resume["rng_torch"].to("cpu"))
-            np.random.set_state(resume["rng_np"]); random.setstate(resume["rng_py"])
             losses, start = list(resume["loss_history"]), resume["global_step"]
         else:
             zs = [nn.Parameter(0.01 * torch.randn(C, grid, grid, device=device)) for _ in dataset]
@@ -401,14 +400,24 @@ class LinrDecoder(nn.Module):
                 self.init_progressive(stages[0][0])   # zero feature cols; set first band
             else:
                 self.set_bandwidth(self.M)            # full bandwidth (joint baseline)
-            opt = torch.optim.Adam(list(self.mlp.parameters()) + zs + a_s, lr=base_lr)
             losses, start = [], 0
+
+        # two param groups: theta gets a (usually smaller) fraction of the latent LR
+        group_base = [base_lr * theta_lr_frac, base_lr]
+        opt = torch.optim.Adam([{"params": list(self.mlp.parameters()), "lr": group_base[0]},
+                                {"params": zs + a_s, "lr": group_base[1]}])
+        if resume is not None:
+            opt.load_state_dict(resume["opt"])
+            torch.set_rng_state(resume["rng_torch"].to("cpu"))
+            np.random.set_state(resume["rng_np"]); random.setstate(resume["rng_py"])
 
         t0 = time.time()
         for step in range(start, total):
             bs, _, K, n = next(b for b in bounds if b[0] <= step < b[1])
             self.set_bandwidth(K)
-            _set_cosine_lr(opt, base_lr, step - bs, n)   # fresh cosine restart per stage
+            factor = 0.5 * (1.0 + math.cos(math.pi * min(step - bs, n) / max(1, n)))  # cosine restart/stage
+            for g, gb in zip(opt.param_groups, group_base):
+                g["lr"] = gb * factor
             i = random.randrange(n_img)
             coords = torch.rand(coords_per_step, 2, device=device) * 2 - 1
             with torch.no_grad():
@@ -431,7 +440,8 @@ class LinrDecoder(nn.Module):
         checkpoint_fn, resume) is forwarded to the trainer for resumable runs."""
         stages = [(K, cfg.iters_per_stage) for K in range(cfg.k0, self.M + 1)]
         return self._fit_bands(dataset, stages, cfg.lr, cfg.coords_per_step,
-                               cfg.grid, zero_init=True, on_step=cfg.on_step, **kw)
+                               cfg.grid, zero_init=True, on_step=cfg.on_step,
+                               theta_lr_frac=cfg.theta_lr_frac, **kw)
 
     def pretrain_joint(self, dataset, total_steps, cfg: ProgressiveConfig, **kw):
         """Equal-budget baseline: full bandwidth from the start, standard init,
@@ -439,7 +449,8 @@ class LinrDecoder(nn.Module):
         forwarded to the trainer (checkpoint_every, checkpoint_fn, resume)."""
         return self._fit_bands(dataset, [(self.M, total_steps)], cfg.lr,
                                cfg.coords_per_step, cfg.grid,
-                               zero_init=False, on_step=cfg.on_step, **kw)
+                               zero_init=False, on_step=cfg.on_step,
+                               theta_lr_frac=cfg.theta_lr_frac, **kw)
 
     def reconstruct(self, y, A: ForwardOperator, cfg: ReconConfig) -> ReconResult:
         # Image-fitting case (A = ImageGrid): fit a fresh (z, a) against y. By default
