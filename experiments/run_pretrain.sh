@@ -6,8 +6,8 @@ python build_databases.py                       # build natural + phantom dbs (s
 
 
 # Cold start a model
-nohup python pretrain.py --exp default --name natural > runs/blend.log 2>&1 &
+nohup python pretrain.py --exp best-v3 --name best-v3 > runs/pretrain.log 2>&1 &
 
 # Improve a model
-nohup python pretrain.py --exp default --name best_v2 --init-from best_model > runs/best_v2.log 2>&1 &
+nohup python pretrain.py --exp default --name best_v2 --init-from best_model > runs/pretrain.log 2>&1 &
 
