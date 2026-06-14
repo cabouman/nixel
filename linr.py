@@ -32,7 +32,6 @@ import torch.nn.functional as F
 
 TWO_PI = 2.0 * math.pi
 DEFAULT_DECODER = "./linr_params/decoder.linrd"
-DEFAULT_RECON_DIR = "./recons"
 
 
 def get_device():
