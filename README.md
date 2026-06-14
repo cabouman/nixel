@@ -55,6 +55,9 @@ Reference studies (kept frozen, not part of the pipeline) live in
 `experiments/archive/` — the progressive and adapt-theta A/B comparisons and the
 `fit_one.py` single-image probe; see [`archive/README.md`](experiments/archive/README.md).
 
+Or use the cheat-sheet `./run_exp.sh` — `single` (pretrain+reconstruct),
+`many-bg` (background long pretrain), `recon [imgs...]`, or `all`.
+
 Typical workflow: `build_databases` → `pretrain --exp <name>` (writes
 `runs/<name>/`) → `reconstruct --exp <name>` (loads `runs/<name>/decoder.linrd`).
 Long `--exp many` runs checkpoint every `checkpoint_every` steps to
