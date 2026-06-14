@@ -22,49 +22,52 @@ pip install -e ".[dev]"     # editable install of the `linr` package + pytest
 
 ```
 linr.py          the package (import linr)
-experiments/     the pipeline: build_databases, configs, pretrain, reconstruct
-  configs.py     named experiment presets (the one place params live)
+experiments/     the pipeline: build_databases, configs, pretrain, recon
+  configs.py     experiment templates (single, default) -- the one place params live
   img_data/      built image databases (gitignored)
-  runs/          ALL generated outputs: config.json, decoder.linrd, state.pt, recon/, figures (gitignored)
+  runs/          model library: one runs/<name>/ per pretrained model (gitignored)
   archive/       settled A/B studies + fit_one probe + notes
 tests/           pytest correctness checks
 dev_scripts/     conda-env helpers
 docs/            theory + API
 ```
 
+Each `runs/<name>/` holds a self-contained model: `decoder.linrd`, the `config.json`
+that produced it, `state.pt` (resume), `loss.npy`, figures, and a `recon/` of its
+reconstructions.
+
 ## Use
 
-Run everything from the `experiments/` directory. Experiments are named in
-[`configs.py`](experiments/configs.py) (`single`, `many`, ...). Select one with
-`--exp`; override fields ad hoc with `--set key=value`.
+Run everything from the `experiments/` directory. `configs.py` holds a couple of
+**templates** (`single`, `default`); tweak with `--set key=value`, and use `--name`
+to keep each pretrained model under its own `runs/<name>/`.
 
 ```bash
 cd experiments              # all commands below are run from here
-
 python build_databases.py                 # build img_data/{natural,phantom}
 
-python pretrain.py --exp single           # pretrain -> runs/single/decoder.linrd
-python reconstruct.py --exp single        # reconstruct (warm-start adapt-theta)
+# pretrain a model into runs/<name>/  (--exp = template, --name = kept model dir)
+python pretrain.py --exp default --name blend
+nohup python pretrain.py --exp default --name blend > runs/blend.log 2>&1 &   # long, in background
+python pretrain.py --exp default --name blend --resume                       # continue if interrupted
 
-# long job: kick off, leave it, resume after an interruption
-nohup python pretrain.py --exp many > runs/many.log 2>&1 &
-tail -f runs/many.log                     # watch progress
-python pretrain.py --exp many --resume    # continue from runs/many/state.pt
+# reconstruct with a saved model: point --model at its runs/<name>/ dir
+python recon.py --model blend --image 0                      # natural image 0
+python recon.py --model blend --database phantom --image 0   # phantom 0 = Shepp-Logan
+python recon.py --model blend --database phantom --image 0 --set recon_steps=2000
 
 cd .. && pytest                           # tests run from the repo root
 ```
 
-Reference studies (kept frozen, not part of the pipeline) live in
-`experiments/archive/` — the progressive and adapt-theta A/B comparisons and the
-`fit_one.py` single-image probe; see [`archive/README.md`](experiments/archive/README.md).
+`experiments/run_pretrain.sh` and `experiments/run_recon.sh` collect these commands.
+Reference studies (frozen) live in `experiments/archive/` — see
+[`archive/README.md`](experiments/archive/README.md).
 
-The four typical commands are collected in `run_exp.sh` (run from `experiments/`).
-
-Typical workflow: `build_databases` → `pretrain --exp <name>` (writes
-`runs/<name>/`) → `reconstruct --exp <name>` (loads `runs/<name>/decoder.linrd`).
-Long `--exp many` runs checkpoint every `checkpoint_every` steps to
-`state.pt`; `--resume` continues from the run's *saved* config (CLI overrides are
-ignored on resume).
+Typical workflow: `build_databases` → `pretrain --exp <template> --name <model>`
+(writes `runs/<model>/`) → `recon --model <model> --image <i>`. To keep a model,
+just give it a unique `--name` (or rename its `runs/` dir). Long runs checkpoint
+every `checkpoint_every` steps to `state.pt`; `--resume` continues from the run's
+*saved* config.
 
 Data and output paths are anchored to `experiments/` (so a script still works if
 launched from elsewhere), but the convention is to run from `experiments/`. Runs on

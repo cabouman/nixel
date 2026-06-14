@@ -1,49 +1,52 @@
 """
-Reconstruct an image with a pretrained decoder from a run, using the validated
-adapt-theta recipe (warm-started theta, fine-tune theta + z, theta_lr = lr, warmup).
+Reconstruct an image with a saved model -- a runs/<model>/ directory produced by
+pretrain.py. Point --model at it; the recon settings come from that run's saved
+config.json (override any with --set). Uses the validated adapt-theta recipe
+(warm-started theta, fine-tune theta + z, theta_lr = recon_lr, warmup).
 
 Run from the experiments/ directory:
 
-    python reconstruct.py --exp single
-    python reconstruct.py --exp many --image 7
-    python reconstruct.py --exp many --database phantom --image 3
+    python recon.py --model blend --image 0
+    python recon.py --model blend --database phantom --image 0
+    python recon.py --model blend --database phantom --image 0 --set recon_steps=2000
 
-Loads runs/<exp>/decoder.linrd (run pretrain.py --exp <exp> first) and writes
-results to runs/<exp>/recon/.
+Loads runs/<model>/decoder.linrd and writes results to runs/<model>/recon/.
 """
 
 # adapt-theta recipe (validated defaults; see archive/ab_*):
 ADAPT_THETA = True       # fine-tune theta in addition to z
-THETA_LR    = None       # None -> lr (equal-rate joint fine-tune)
+THETA_LR    = None       # None -> recon_lr (equal-rate joint fine-tune)
 WARMUP      = 200        # z-only steps before unfreezing theta
 
-import argparse, glob, math, os, random
+import argparse, glob, json, math, os, random
 import numpy as np, torch
 from PIL import Image
 from linr import LinrDecoder, ImageGrid, ReconConfig, get_device
 from _paths import NATURAL_DIR, PHANTOM_DIR, RUNS_DIR
-from configs import get_experiment
+from configs import config_from_json
 
 DB_DIRS = {"natural": NATURAL_DIR, "phantom": PHANTOM_DIR}
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exp", default="single", help="experiment name in configs.py")
+    ap.add_argument("--model", default="single", help="run dir under runs/ (the saved model)")
     ap.add_argument("--image", type=int, default=None, help="override recon_image (sorted index)")
     ap.add_argument("--database", choices=["natural", "phantom"], default=None,
-                    help="which DB to reconstruct from (default: the config's database)")
+                    help="which DB to reconstruct from (default: the model's database)")
     ap.add_argument("--set", nargs="*", default=[], metavar="key=value")
     args = ap.parse_args()
-    cfg = get_experiment(args.exp, args.set)
 
-    torch.manual_seed(cfg.seed); np.random.seed(cfg.seed); random.seed(cfg.seed)
     dev = get_device()
-
-    run_dir = os.path.join(RUNS_DIR, args.exp)
+    run_dir = os.path.join(RUNS_DIR, args.model)
     dpath = os.path.join(run_dir, "decoder.linrd")
     if not os.path.exists(dpath):
-        raise SystemExit(f"No decoder at {dpath}\nRun:  python experiments/pretrain.py --exp {args.exp}")
+        raise SystemExit(f"No model at {dpath}\nRun:  python pretrain.py --name {args.model} ...")
+    cfg_path = os.path.join(run_dir, "config.json")
+    saved = json.load(open(cfg_path)) if os.path.exists(cfg_path) else {}
+    cfg = config_from_json(saved, args.set)   # empty -> defaults, then --set overrides
+
+    torch.manual_seed(cfg.seed); np.random.seed(cfg.seed); random.seed(cfg.seed)
     dec = LinrDecoder.load(dpath, device=dev)
 
     image = cfg.recon_image if args.image is None else args.image
@@ -52,13 +55,13 @@ def main():
     path = paths[image]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // dec.P; gt = img
-    tlr = THETA_LR if THETA_LR is not None else cfg.lr
+    tlr = THETA_LR if THETA_LR is not None else cfg.recon_lr
     mode = f"adapt-theta (theta_lr={tlr:.1e}, warmup={WARMUP})" if ADAPT_THETA else "frozen theta"
-    print(f"[{args.exp}] decoder (P={dec.P} C={dec.channels}) | {database} {os.path.basename(path)} "
+    print(f"[{args.model}] decoder (P={dec.P} C={dec.channels}) | {database} {os.path.basename(path)} "
           f"{N}x{N} (G={G}) | {mode} | {cfg.recon_steps} steps")
 
     res = dec.reconstruct(img, ImageGrid(N, dev),
-                          ReconConfig(steps=cfg.recon_steps, lr=cfg.lr, coords_per_step=cfg.coords,
+                          ReconConfig(steps=cfg.recon_steps, lr=cfg.recon_lr, coords_per_step=cfg.coords,
                                       grid=G, adapt_theta=ADAPT_THETA, theta_lr=THETA_LR,
                                       theta_warmup=WARMUP))
     fhat = res.recon.render(N).cpu()
@@ -92,7 +95,7 @@ def main():
     ax[3].plot(np.arange(len(sm)) + off, sm, color="C0", lw=1.2)
     ax[3].set_xlabel("z-fit iteration"); ax[3].set_ylabel("PSNR proxy (dB)")
     ax[3].set_title("reconstruction convergence"); ax[3].grid(alpha=0.3)
-    fig.suptitle(f"reconstruct [{args.exp}]  {os.path.basename(path)}")
+    fig.suptitle(f"reconstruct [{args.model}]  {os.path.basename(path)}")
     fig.tight_layout()
     out = os.path.join(out_dir, f"{tag}.png")
     fig.savefig(out, dpi=120, bbox_inches="tight")

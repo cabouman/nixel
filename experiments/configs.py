@@ -35,6 +35,7 @@ class ExperimentConfig:
     # ---- default reconstruction (used by reconstruct.py) ----
     recon_image: int = 0             # which image (sorted index) to reconstruct
     recon_steps: int = 10000         # z-fit iterations
+    recon_lr: float = 1e-2           # reconstruction LR (z & theta); >pretrain lr -> faster convergence
 
 
 EXPERIMENTS = {
@@ -44,20 +45,12 @@ EXPERIMENTS = {
         iters_per_stage=2000, checkpoint_every=0,
         recon_image=0, recon_steps=10000,
     ),
-    # Many-image pretraining -- a long job. Kick off and let it run; checkpoints every
-    # 2000 steps so it survives interruption (resume with `--resume`).
-    "many": ExperimentConfig(
-        num_images=200, image_start=10,        # train on natural 10.. ; hold out 0..9 for testing
-        num_phantoms=0, phantom_start=0,       # set num_phantoms>0 to mix in phantom images
-        iters_per_stage=20000, checkpoint_every=2000,
-        recon_image=0, recon_steps=10000,      # recon_image=0 is held out (image_start=10)
-    ),
-    # Like 'many' but its own run dir (won't clobber 'many'); 100,000 iterations per
-    # stage -> P=8's 5 progressive stages give 500,000 total.
-    "many-v2": ExperimentConfig(
-        num_images=200, image_start=10,
-        num_phantoms=0, phantom_start=0,
-        iters_per_stage=100000, checkpoint_every=2000,  # 5 stages x 100000 = 500,000 total
+    # Main template: a blend of naturals + phantoms, holding out indices 0..9 of each
+    # for testing. Edit here or override with --set; keep the resulting model with --name.
+    "default": ExperimentConfig(
+        num_images=90, image_start=10,         # naturals 10..99 (hold out 0..9)
+        num_phantoms=90, phantom_start=10,     # phantoms 10..99 (hold out 0..9 incl. Shepp-Logan)
+        iters_per_stage=20000, checkpoint_every=2000,   # 5 stages x 20000 = 100,000 total
         recon_image=0, recon_steps=10000,
     ),
 }
@@ -73,11 +66,7 @@ def _coerce(cur, value):
     return value
 
 
-def get_experiment(name, overrides=None):
-    """Return a COPY of the named ExperimentConfig with `--set key=value` overrides applied."""
-    if name not in EXPERIMENTS:
-        raise SystemExit(f"Unknown --exp '{name}'. Choices: {', '.join(EXPERIMENTS)}")
-    cfg = dataclasses.replace(EXPERIMENTS[name])
+def _apply_overrides(cfg, overrides):
     for item in overrides or []:
         if "=" not in item:
             raise SystemExit(f"--set expects key=value, got '{item}'")
@@ -87,3 +76,18 @@ def get_experiment(name, overrides=None):
                              f"Fields: {', '.join(f.name for f in dataclasses.fields(cfg))}")
         setattr(cfg, key, _coerce(getattr(cfg, key), value))
     return cfg
+
+
+def get_experiment(name, overrides=None):
+    """A COPY of the named template with `--set` overrides (used by pretrain.py)."""
+    if name not in EXPERIMENTS:
+        raise SystemExit(f"Unknown --exp '{name}'. Choices: {', '.join(EXPERIMENTS)}")
+    return _apply_overrides(dataclasses.replace(EXPERIMENTS[name]), overrides)
+
+
+def config_from_json(meta, overrides=None):
+    """Rebuild an ExperimentConfig from a run's saved config.json dict + `--set`
+    overrides (used by recon.py so a saved model reconstructs with its own settings)."""
+    fields = {f.name for f in dataclasses.fields(ExperimentConfig)}
+    return _apply_overrides(ExperimentConfig(**{k: v for k, v in meta.items() if k in fields}),
+                            overrides)

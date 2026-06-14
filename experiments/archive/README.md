@@ -46,4 +46,4 @@ P=8 C=8, 10000 steps, render PSNR:
   z-only warmup only ~0.2 dB (kept at 200 as a cheap nicety).
 
 **Settled defaults:** `adapt_theta=True`, `theta_lr=LR`, `theta_warmup=200`
-(baked into `reconstruct.py` and the `linr.reconstruct` default).
+(baked into `recon.py` and the `linr.reconstruct` default).
