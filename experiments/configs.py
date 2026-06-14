@@ -52,6 +52,14 @@ EXPERIMENTS = {
         iters_per_stage=20000, checkpoint_every=2000,
         recon_image=0, recon_steps=10000,      # recon_image=0 is held out (image_start=10)
     ),
+    # Like 'many' but its own run dir (won't clobber 'many'); 100,000 iterations per
+    # stage -> P=8's 5 progressive stages give 500,000 total.
+    "many-v2": ExperimentConfig(
+        num_images=200, image_start=10,
+        num_phantoms=0, phantom_start=0,
+        iters_per_stage=100000, checkpoint_every=2000,  # 5 stages x 100000 = 500,000 total
+        recon_image=0, recon_steps=10000,
+    ),
 }
 
 

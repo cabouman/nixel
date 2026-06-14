@@ -19,11 +19,15 @@ python pretrain.py --exp single
 python reconstruct.py --exp single --image 0
 
 # 3. many images (long): pretrain, then reconstruct a natural and a phantom image
-python pretrain.py --exp many
-python reconstruct.py --exp many --image 0                      # natural image 0 (held out)
-python reconstruct.py --exp many --database phantom --image 0   # phantom image 0
+python pretrain.py --exp many-v2
+python reconstruct.py --exp many-v2 --image 0                      # natural image 0 (held out)
+python reconstruct.py --exp many-v2 --database phantom --image 0   # phantom image 0 (Shepp-Logan)
+python reconstruct.py --exp many-v2 --database phantom --image 0 --set recon_steps=1000 # with fewer iterations
+
+# override reconstruction iterations without editing configs.py (--set any config field):
+#   python reconstruct.py --exp many-v2 --database phantom --image 0 --set recon_steps=5000
 
 # --- alternative: background the long 'many' pretrain, watch it, reconstruct later ---
-#   nohup python pretrain.py --exp many > runs/many.log 2>&1 &
-#   tail -f runs/many.log
-#   python reconstruct.py --exp many --image 0
+#   nohup python pretrain.py --exp many-v2 > runs/many-v2.log 2>&1 &
+#   tail -f runs/many-v2.log
+#   python reconstruct.py --exp many-v2 --image 0
