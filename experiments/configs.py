@@ -41,19 +41,20 @@ class ExperimentConfig:
 
 
 EXPERIMENTS = {
-    # Quick, single-image case to run locally (matches the validated single-image flow).
-    "single": ExperimentConfig(
-        num_images=1, image_start=0,           # single image: no z undersampling -> lr=1e-3, frac=1.0
-        iters_per_stage=2000, checkpoint_every=0,
-        recon_image=0, recon_steps=1000,
-    ),
     # Main template: a blend of naturals + phantoms, holding out indices 0..9 of each
     # for testing. Edit here or override with --set; keep the resulting model with --name.
     "default": ExperimentConfig(
-        num_images=90, image_start=10,         # naturals 10..99 (hold out 0..9)
-        num_phantoms=90, phantom_start=10,     # phantoms 10..99 (hold out 0..9 incl. Shepp-Logan)
-        iters_per_stage=20000, checkpoint_every=2000,   # 5 stages x 20000 = 100,000 total
-        lr=1e-2, theta_lr_frac=0.5,            # decoupled: z fast (1e-2), theta gentler (5e-3); ~+1 dB at fixed budget
+        num_images=200, image_start=10,       # natural images
+        num_phantoms=0, phantom_start=10,     # phantom images: image 0 is Shepp-Logan
+        iters_per_stage=20000, checkpoint_every=2000,   # 5 stages x 40000 = 200,000 total
+        lr=1e-2, theta_lr_frac=1.0,            # decoupled: z fast (1e-2), theta gentler (5e-3); ~+1 dB at fixed budget
+        recon_image=0, recon_steps=1000,
+    ),
+    "natural": ExperimentConfig(
+        num_images=200, image_start=10,     # natural images
+        num_phantoms=0, phantom_start=10,   # phantom images: image 0 is Shepp-Logan
+        iters_per_stage=20000, checkpoint_every=2000,
+        lr=1e-2, theta_lr_frac=1.0,
         recon_image=0, recon_steps=1000,
     ),
 }

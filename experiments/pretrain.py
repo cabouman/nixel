@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--name", default=None, help="run-dir name under runs/ (default: --exp); "
                                                  "pick a unique name to keep the model")
     ap.add_argument("--resume", action="store_true", help="continue from runs/<name>/state.pt")
+    ap.add_argument("--init-from", default=None, metavar="MODEL",
+                    help="warm-start theta from runs/<MODEL>/decoder.linrd, then train JOINT")
     ap.add_argument("--set", nargs="*", default=[], metavar="key=value",
                     help="override config fields, e.g. --set iters_per_stage=50000")
     args = ap.parse_args()
@@ -54,6 +56,12 @@ def main():
     else:
         cfg = get_experiment(args.exp, args.set)
 
+    if args.init_from and not args.resume and cfg.progressive:
+        # progressive zeros the first-layer Fourier columns at each stage, which
+        # would wipe the warm-started theta -- so warm-start implies joint training.
+        print("  --init-from given: forcing joint training (progressive would zero the warm-started theta)")
+        cfg = dataclasses.replace(cfg, progressive=False)
+
     torch.manual_seed(cfg.seed); np.random.seed(cfg.seed); random.seed(cfg.seed)
 
     # ---- data: num_images natural (from image_start) + num_phantoms phantom (from phantom_start) ----
@@ -65,13 +73,22 @@ def main():
                          "(or check num_images / num_phantoms).")
     imgs = [torch.from_numpy(np.asarray(Image.open(p).convert("L"), np.float32) / 255.0)
             for p in paths]
-    N = imgs[0].shape[0]; G = N // cfg.P
+    N = imgs[0].shape[0]
     dataset = [ArrayField(im.to(dev)) for im in imgs]
 
-    # ---- decoder (built from config; theta restored below if resuming) ----
-    dec = LinrDecoder(cfg.P, channels=cfg.channels, hidden=cfg.hidden,
-                      layers=cfg.layers, out_act=cfg.out_act, device=dev)
+    # ---- decoder: warm-start theta from another model (--init-from) or build fresh ----
+    # (when resuming, theta is restored from state.pt below)
+    if args.init_from and not args.resume:
+        src = os.path.join(RUNS_DIR, args.init_from, "decoder.linrd")
+        if not os.path.exists(src):
+            raise SystemExit(f"--init-from: no decoder at {src}")
+        dec = LinrDecoder.load(src, device=dev)
+        print(f"  warm-started theta from {args.init_from} (decoder id {dec.id})")
+    else:
+        dec = LinrDecoder(cfg.P, channels=cfg.channels, hidden=cfg.hidden,
+                          layers=cfg.layers, out_act=cfg.out_act, device=dev)
     M = dec.M
+    G = N // dec.P
     total = (M - cfg.k0 + 1) * cfg.iters_per_stage
 
     resume_state = None
@@ -87,7 +104,8 @@ def main():
 
     # write config up front so an interrupted run is still resumable
     def write_config(extra=None):
-        meta = {**dataclasses.asdict(cfg), "exp": args.exp, "total_steps": total}
+        meta = {**dataclasses.asdict(cfg), "exp": args.exp, "total_steps": total,
+                "init_from": args.init_from}
         with open(cfg_path, "w") as f:
             json.dump({**meta, **(extra or {})}, f, indent=2)
     write_config()

@@ -10,6 +10,8 @@ tomographic reconstruction): a coarse grid of small local latent vectors
   nixel interpolation, periodic Fourier basis, decoder, compression.
 - [`docs/theory-v2.md`](docs/theory-v2.md) — nested Fourier bands and progressive
   (coarse-to-fine) training.
+- [`docs/theory-v3.md`](docs/theory-v3.md) — diagonal Hessian / Gauss–Newton
+  curvature of the latent fit (an efficient $w^2$-splat), preconditioning, and ICD.
 - [`docs/API_def.md`](docs/API_def.md) — the user-facing API.
 
 ## Install
