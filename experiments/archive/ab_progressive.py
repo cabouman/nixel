@@ -24,7 +24,8 @@ from PIL import Image
 from linr import LinrDecoder, ArrayField, ProgressiveConfig, pixel_grid, get_device
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # experiments/ (for _paths)
-from _paths import NATURAL_DIR, OUTPUT_DIR
+from _paths import NATURAL_DIR, RUNS_DIR
+OUTPUT_DIR = os.path.join(RUNS_DIR, "archive")          # archive figures live under runs/
 
 
 def seed_all(s):

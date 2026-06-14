@@ -16,7 +16,7 @@ estimate) vs z-fit iteration. Run pretrain.py first to produce the decoder.
 """
 
 # ============================ PARAMETERS ============================
-DECODER     = "decoder_P8_C8_n1_prog.linrd"   # frozen theta (.linrd in models/)
+DECODER     = "decoder.linrd"   # in runs/single/ (run: pretrain.py --exp single)
 IMAGE       = 0          # nat_<k>.png the decoder was trained on
 REFIT_STEPS = 2000       # total z-fit iterations PER ARM
 LR          = 1e-3       # base LR (cosine; per-stage restart for PROG)
@@ -32,7 +32,9 @@ from PIL import Image
 from linr import (LinrDecoder, ArrayField, pixel_grid, get_device, _set_cosine_lr)
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # experiments/ (for _paths)
-from _paths import NATURAL_DIR, OUTPUT_DIR, MODELS_DIR
+from _paths import NATURAL_DIR, RUNS_DIR
+OUTPUT_DIR = os.path.join(RUNS_DIR, "archive")          # archive figures live under runs/
+MODELS_DIR = os.path.join(RUNS_DIR, "single")           # archive scripts load runs/single/decoder.linrd
 
 
 def seed_all(s):

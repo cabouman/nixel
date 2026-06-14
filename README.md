@@ -22,10 +22,11 @@ pip install -e ".[dev]"     # editable install of the `linr` package + pytest
 
 ```
 linr.py          the package (import linr)
-experiments/     runnable scripts; data + run outputs live here (gitignored)
+experiments/     the pipeline: build_databases, configs, pretrain, reconstruct
   configs.py     named experiment presets (the one place params live)
-  runs/          per-experiment outputs: config.json, decoder.linrd, state.pt, figures
-  archive/       settled A/B studies (progressive, adapt-theta) + notes
+  img_data/      built image databases (gitignored)
+  runs/          ALL generated outputs: config.json, decoder.linrd, state.pt, recon/, figures (gitignored)
+  archive/       settled A/B studies + fit_one probe + notes
 tests/           pytest correctness checks
 dev_scripts/     conda-env helpers
 docs/            theory + API
@@ -47,9 +48,12 @@ python experiments/reconstruct.py --exp single    # reconstruct (warm-start adap
 nohup python experiments/pretrain.py --exp many > runs/many.log 2>&1 &
 python experiments/pretrain.py --exp many --resume   # continue from runs/many/state.pt
 
-python experiments/fit_one.py                     # single-image progressive fit (probe)
 pytest                                             # run the tests
 ```
+
+Reference studies (kept frozen, not part of the pipeline) live in
+`experiments/archive/` — the progressive and adapt-theta A/B comparisons and the
+`fit_one.py` single-image probe; see [`archive/README.md`](experiments/archive/README.md).
 
 Typical workflow: `build_databases` → `pretrain --exp <name>` (writes
 `runs/<name>/`) → `reconstruct --exp <name>` (loads `runs/<name>/decoder.linrd`).
@@ -58,5 +62,5 @@ Long `--exp many` runs checkpoint every `checkpoint_every` steps to
 ignored on resume).
 
 Scripts run from anywhere — paths are anchored to `experiments/`. Runs on CUDA,
-Apple MPS, or CPU automatically. Generated data (`img_data/`, `output/`, `runs/`,
-`*.linrd`, `*.linrz`) is gitignored.
+Apple MPS, or CPU automatically. All generated data lives in `experiments/img_data/`
+and `experiments/runs/`, both gitignored.

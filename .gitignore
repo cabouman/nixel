@@ -10,9 +10,6 @@ dist/
 
 # generated data and outputs (regenerable)
 img_data/
-output/
-models/
-linr_params/
 runs/
 *.linrd
 *.linrz

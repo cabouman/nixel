@@ -1,9 +1,11 @@
 # archive — settled comparison studies
 
-A/B scripts that answered a design question once and for all. They are kept for
-reference (and to re-convince a skeptic) but are **not** part of the active
-workflow. They run from anywhere; a `sys.path` shim lets them import
-`experiments/_paths.py` from this subdirectory.
+A/B scripts that answered a design question once and for all, plus the
+`fit_one.py` single-image probe. Kept for reference (and to re-convince a skeptic)
+but **not** part of the active workflow. They run from anywhere; a `sys.path` shim
+lets them import `experiments/_paths.py`. Figures are written to `runs/archive/`,
+and the studies that need a pretrained decoder load `runs/single/decoder.linrd`
+(run `python experiments/pretrain.py --exp single` first).
 
 ## The "progressive" question — two separate answers
 

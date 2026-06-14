@@ -8,7 +8,7 @@ fast it gets there (PSNR proxy = -10 log10 of the 65536-coord minibatch MSE).
 """
 
 # ============================ PARAMETERS ============================
-DECODER  = "decoder_P8_C8_n1_prog.linrd"   # frozen prior theta (.linrd in models/)
+DECODER  = "decoder.linrd"   # in runs/single/ (run: pretrain.py --exp single)
 IMAGE    = 0          # nat_<k>.png the decoder was trained on
 STEPS    = 10000      # z-fit iterations per arm
 LR       = 1e-3       # z (and a) learning rate
@@ -24,7 +24,9 @@ from PIL import Image
 from linr import LinrDecoder, ImageGrid, ReconConfig, get_device
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # experiments/ (for _paths)
-from _paths import NATURAL_DIR, OUTPUT_DIR, MODELS_DIR
+from _paths import NATURAL_DIR, RUNS_DIR
+OUTPUT_DIR = os.path.join(RUNS_DIR, "archive")          # archive figures live under runs/
+MODELS_DIR = os.path.join(RUNS_DIR, "single")           # load runs/single/decoder.linrd
 
 
 def run(img, adapt, dev):
