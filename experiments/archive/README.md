@@ -12,12 +12,11 @@ workflow. They run from anywhere; a `sys.path` shim lets them import
   full-bandwidth training of θ at equal iteration budget. Progressive wins
   (~+0.8 dB single image). This is why `pretrain.py` uses progressive training.
 
-- **Progressive RECONSTRUCTION does not help.** With θ frozen and only `z` being
-  fit, a progressive band sweep ties joint full-bandwidth and is *slower* early
-  (joint ~24.98 dB vs prog ~25.05 dB final; joint ahead at low iteration counts).
+- **Progressive RECONSTRUCTION does not help.** `ab_reconstruct.py` fits `z`
+  against a frozen θ two ways — joint full-bandwidth vs a progressive band sweep.
+  They tie (joint ~24.98 dB vs prog ~25.05 dB final) and joint is *faster* early.
   Fitting `z` against a fixed, well-conditioned θ is near-convex, so the band
-  schedule buys nothing. **Reconstruction stays joint.** (The script that
-  demonstrates this, `ab_reconstruct.py`, was not committed; ask to restore it.)
+  schedule buys nothing. **Reconstruction stays joint.**
 
 ## Why this matters
 
