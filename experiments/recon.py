@@ -13,10 +13,9 @@ Run from the experiments/ directory:
 Loads runs/<model>/decoder.linrd and writes results to runs/<model>/recon/.
 """
 
-# adapt-theta recipe (validated defaults; see archive/ab_*):
-ADAPT_THETA = True       # fine-tune theta in addition to z
-THETA_LR    = None       # None -> recon_lr (equal-rate joint fine-tune)
-WARMUP      = 200        # z-only steps before unfreezing theta
+# adapt-theta recipe: fine-tune theta in addition to z. The theta LR (recon_theta_lr,
+# None -> recon_lr) and z-only warmup (recon_warmup, default 0) come from the config.
+ADAPT_THETA = True
 
 import argparse, glob, json, math, os, random
 import numpy as np, torch
@@ -55,15 +54,16 @@ def main():
     path = paths[image]
     img = torch.from_numpy(np.asarray(Image.open(path).convert("L"), np.float32) / 255.0)
     N = img.shape[0]; G = N // dec.P; gt = img
-    tlr = THETA_LR if THETA_LR is not None else cfg.recon_lr
-    mode = f"adapt-theta (theta_lr={tlr:.1e}, warmup={WARMUP})" if ADAPT_THETA else "frozen theta"
+    tlr = cfg.recon_theta_lr_frac * cfg.recon_lr
+    mode = (f"adapt-theta (theta_lr={tlr:.1e} = {cfg.recon_theta_lr_frac:g}x z, warmup={cfg.recon_warmup})"
+            if ADAPT_THETA else "frozen theta")
     print(f"[{args.model}] decoder (P={dec.P} C={dec.channels}) | {database} {os.path.basename(path)} "
           f"{N}x{N} (G={G}) | {mode} | {cfg.recon_steps} steps")
 
     res = dec.reconstruct(img, ImageGrid(N, dev),
                           ReconConfig(steps=cfg.recon_steps, lr=cfg.recon_lr, coords_per_step=cfg.coords,
-                                      grid=G, adapt_theta=ADAPT_THETA, theta_lr=THETA_LR,
-                                      theta_warmup=WARMUP))
+                                      grid=G, adapt_theta=ADAPT_THETA, theta_lr=tlr,
+                                      theta_warmup=cfg.recon_warmup))
     fhat = res.recon.render(N).cpu()
     psnr = -10 * math.log10(torch.mean((fhat - gt) ** 2).item() + 1e-12)
     nrmse = 100 * torch.linalg.norm(fhat - gt) / torch.linalg.norm(gt)

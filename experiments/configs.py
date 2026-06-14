@@ -7,7 +7,6 @@ experiment by adding an entry to EXPERIMENTS.
 """
 
 import dataclasses
-from typing import Optional
 
 
 @dataclasses.dataclass
@@ -32,10 +31,12 @@ class ExperimentConfig:
     k0: int = 0                      # progressive starting band
     seed: int = 0
     checkpoint_every: int = 0        # 0 = checkpoint only at the end
-    # ---- default reconstruction (used by reconstruct.py) ----
+    # ---- default reconstruction (used by recon.py) ----
     recon_image: int = 0             # which image (sorted index) to reconstruct
     recon_steps: int = 10000         # z-fit iterations
-    recon_lr: float = 1e-2           # reconstruction LR (z & theta); >pretrain lr -> faster convergence
+    recon_lr: float = 2e-2           # z (and a) LR (tuned for ~1000-step recon)
+    recon_theta_lr_frac: float = 0.3 # theta LR = this fraction of recon_lr (gentler theta lets z run faster)
+    recon_warmup: int = 0            # z-only steps before adapting theta (0 = adapt from start)
 
 
 EXPERIMENTS = {
@@ -43,7 +44,7 @@ EXPERIMENTS = {
     "single": ExperimentConfig(
         num_images=1, image_start=0,
         iters_per_stage=2000, checkpoint_every=0,
-        recon_image=0, recon_steps=10000,
+        recon_image=0, recon_steps=1000,
     ),
     # Main template: a blend of naturals + phantoms, holding out indices 0..9 of each
     # for testing. Edit here or override with --set; keep the resulting model with --name.
@@ -51,7 +52,7 @@ EXPERIMENTS = {
         num_images=90, image_start=10,         # naturals 10..99 (hold out 0..9)
         num_phantoms=90, phantom_start=10,     # phantoms 10..99 (hold out 0..9 incl. Shepp-Logan)
         iters_per_stage=20000, checkpoint_every=2000,   # 5 stages x 20000 = 100,000 total
-        recon_image=0, recon_steps=10000,
+        recon_image=0, recon_steps=1000,
     ),
 }
 
